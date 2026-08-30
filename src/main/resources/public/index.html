@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Torven Ventas</title>
+<meta name="theme-color" content="#0f172a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Torven">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<!-- Pantalla de inicio de sesion -->
+<section id="pantalla-login" class="pantalla">
+  <div class="tarjeta-login">
+    <img src="/icons/icon-192.png" alt="Torven" class="logo-login">
+    <h1>Torven</h1>
+    <p class="subtitulo">Ventas desde el celular</p>
+    <form id="form-login">
+      <label for="campo-usuario">Usuario</label>
+      <input id="campo-usuario" type="text" autocomplete="username" required>
+      <label for="campo-clave">Clave</label>
+      <input id="campo-clave" type="password" autocomplete="current-password" required>
+      <button type="submit" class="boton-primario">Ingresar</button>
+      <p id="error-login" class="mensaje-error"></p>
+    </form>
+  </div>
+</section>
+
+<!-- Pantalla principal: nueva venta -->
+<section id="pantalla-venta" class="pantalla oculto">
+  <header class="barra-superior">
+    <div>
+      <strong id="nombre-usuario"></strong>
+      <span class="etiqueta-rol" id="rol-usuario"></span>
+    </div>
+    <button id="boton-salir" class="boton-texto">Salir</button>
+  </header>
+
+  <div class="contenido-scroll">
+
+    <div class="bloque">
+      <h2>Cliente</h2>
+      <div id="cliente-seleccionado" class="chip-seleccionado oculto">
+        <span id="cliente-nombre-chip"></span>
+        <button id="quitar-cliente" class="boton-quitar" aria-label="Quitar cliente">&times;</button>
+      </div>
+      <input id="buscar-cliente" type="text" placeholder="Buscar cliente por nombre, telefono o DNI"
+             class="campo-buscar">
+      <ul id="lista-clientes" class="lista-resultados"></ul>
+    </div>
+
+    <div class="bloque">
+      <h2>Productos</h2>
+      <input id="buscar-producto" type="text" placeholder="Buscar producto" class="campo-buscar">
+      <ul id="lista-productos" class="lista-resultados"></ul>
+    </div>
+
+    <div class="bloque">
+      <h2>Carrito</h2>
+      <ul id="carrito" class="lista-carrito"></ul>
+      <p id="carrito-vacio" class="texto-vacio">Todavia no agregaste productos.</p>
+    </div>
+
+  </div>
+
+  <footer class="barra-inferior">
+    <div class="fila-total">
+      <span>Total</span>
+      <strong id="total-carrito">S/ 0.00</strong>
+    </div>
+    <button id="boton-confirmar" class="boton-primario" disabled>Registrar venta</button>
+    <p id="error-venta" class="mensaje-error"></p>
+  </footer>
+</section>
+
+<!-- Confirmacion de venta -->
+<section id="pantalla-confirmacion" class="pantalla oculto">
+  <div class="tarjeta-login">
+    <div class="icono-check">&#10003;</div>
+    <h1>Venta registrada</h1>
+    <p id="detalle-confirmacion" class="subtitulo"></p>
+    <button id="boton-nueva-venta" class="boton-primario">Nueva venta</button>
+  </div>
+</section>
+
+<script src="/app.js"></script>
+</body>
+</html>

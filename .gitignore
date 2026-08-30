@@ -1,0 +1,9 @@
+/target/
+/.m2/
+/config/database.properties
+/packaging/
+/salida/
+/vouchers/
+/database/
+/docs/
+/api/config.php

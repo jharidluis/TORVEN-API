@@ -1,0 +1,292 @@
+package dao;
+
+import configuracion.Conexion;
+import java.math.BigDecimal;
+import java.sql.CallableStatement;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList;
+import java.util.List;
+import modelos.Cliente;
+import modelos.DashboardDatos;
+import modelos.LineaVenta;
+import modelos.VentaEstado;
+import modelos.VentaTicket;
+
+public class DashboardDAO {
+    public DashboardDatos cargar(LocalDate desde, LocalDate hasta, boolean canceladas) throws SQLException {
+        try (Connection conn = Conexion.abrir();
+             CallableStatement call = conn.prepareCall("{CALL sp_dashboard_cargar(?, ?, ?)}")) {
+            LocalDate fechaDesde = desde == null ? LocalDate.now() : desde;
+            LocalDate fechaHasta = hasta == null ? fechaDesde : hasta;
+            call.setDate(1, java.sql.Date.valueOf(fechaDesde));
+            call.setDate(2, java.sql.Date.valueOf(fechaHasta));
+            call.setInt(3, canceladas ? 1 : 0);
+
+            if (!call.execute()) {
+                throw new SQLException("El procedimiento del Dashboard no devolvio el resumen.");
+            }
+
+            BigDecimal hoy;
+            BigDecimal semana;
+            BigDecimal mes;
+            int clientes;
+            int productos;
+            int stockBajo;
+            try (ResultSet rs = call.getResultSet()) {
+                if (!rs.next()) {
+                    throw new SQLException("El procedimiento del Dashboard devolvio un resumen vacio.");
+                }
+                hoy = rs.getBigDecimal("ventas_hoy");
+                semana = rs.getBigDecimal("ventas_semana");
+                mes = rs.getBigDecimal("ventas_mes");
+                clientes = rs.getInt("total_clientes");
+                productos = rs.getInt("total_productos");
+                stockBajo = rs.getInt("stock_bajo");
+            }
+
+            if (!call.getMoreResults(Statement.CLOSE_CURRENT_RESULT)) {
+                throw new SQLException("El procedimiento del Dashboard no devolvio los distritos.");
+            }
+            List<Object[]> distritos;
+            try (ResultSet rs = call.getResultSet()) {
+                distritos = leerDistritos(rs);
+            }
+
+            if (!call.getMoreResults(Statement.CLOSE_CURRENT_RESULT)) {
+                throw new SQLException("El procedimiento del Dashboard no devolvio las ventas.");
+            }
+            List<Object[]> ventas;
+            try (ResultSet rs = call.getResultSet()) {
+                ventas = leerVentas(rs);
+            }
+            return new DashboardDatos(hoy, semana, mes, clientes, productos, stockBajo, distritos, ventas);
+        } catch (SQLException ex) {
+            if (ex.getErrorCode() != 1305) {
+                throw ex;
+            }
+            return cargarSinProcedimiento(desde, hasta, canceladas);
+        }
+    }
+
+    public BigDecimal ventasHoy() throws SQLException {
+        LocalDate hoy = LocalDate.now();
+        return ventasPorPeriodo(hoy, hoy.plusDays(1));
+    }
+
+    public BigDecimal ventasSemana() throws SQLException {
+        LocalDate inicioSemana = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        return ventasPorPeriodo(inicioSemana, inicioSemana.plusWeeks(1));
+    }
+
+    public BigDecimal ventasMes() throws SQLException {
+        LocalDate inicioMes = LocalDate.now().withDayOfMonth(1);
+        return ventasPorPeriodo(inicioMes, inicioMes.plusMonths(1));
+    }
+
+    public int totalClientes() throws SQLException {
+        return entero("SELECT COUNT(*) FROM cliente WHERE activo = 1");
+    }
+
+    public int totalProductos() throws SQLException {
+        return entero("SELECT COUNT(*) FROM producto WHERE activo = 1");
+    }
+
+    public int productosStockBajo() throws SQLException {
+        return entero("SELECT COUNT(*) FROM producto WHERE activo = 1 AND stock <= 5");
+    }
+
+    public List<Object[]> ventasPorRango(LocalDate desde, LocalDate hasta) throws SQLException {
+        return ventasPorRango(desde, hasta, false);
+    }
+
+    public List<Object[]> ventasPorRango(LocalDate desde, LocalDate hasta, boolean canceladas) throws SQLException {
+        LocalDate fechaDesde = desde == null ? LocalDate.now() : desde;
+        LocalDate fechaHasta = hasta == null ? fechaDesde : hasta;
+        List<Object[]> ventas = new ArrayList<Object[]>();
+        String sql = "SELECT v.id_venta, v.fecha_venta, c.nombre_completo, "
+                + "COALESCE(NULLIF(v.documento_comprobante, ''), c.dni_ruc) AS dni_ruc, "
+                + "v.total, v.estado "
+                + "FROM venta v INNER JOIN cliente c ON c.id_cliente = v.id_cliente "
+                + "WHERE v.fecha_venta >= ? AND v.fecha_venta < ? "
+                + (canceladas ? "AND v.estado = ? " : "AND v.estado IN ('VENDIDA', 'PAGADA') ")
+                + "ORDER BY v.fecha_venta DESC";
+        try (Connection conn = Conexion.abrir();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setTimestamp(1, Timestamp.valueOf(fechaDesde.atStartOfDay()));
+            ps.setTimestamp(2, Timestamp.valueOf(fechaHasta.plusDays(1).atStartOfDay()));
+            if (canceladas) {
+                ps.setString(3, VentaEstado.CANCELADA);
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    ventas.add(new Object[]{
+                        rs.getLong("id_venta"),
+                        rs.getTimestamp("fecha_venta"),
+                        rs.getString("nombre_completo"),
+                        rs.getString("dni_ruc"),
+                        rs.getBigDecimal("total"),
+                        VentaEstado.normalizar(rs.getString("estado"))
+                    });
+                }
+            }
+        }
+        return ventas;
+    }
+
+    public List<Object[]> ventasPorDistrito() throws SQLException {
+        List<Object[]> distritos = new ArrayList<Object[]>();
+        String sql = "SELECT COALESCE(d.nombre, 'Otro') AS distrito, "
+                + "COALESCE(SUM(v.total), 0) AS total, COUNT(*) AS ventas "
+                + "FROM venta v "
+                + "INNER JOIN cliente c ON c.id_cliente = v.id_cliente "
+                + "LEFT JOIN distritos d ON d.id_distrito = c.id_distrito "
+                + "WHERE v.estado IN ('VENDIDA', 'PAGADA') "
+                + "GROUP BY COALESCE(d.nombre, 'Otro') "
+                + "ORDER BY total DESC, ventas DESC, distrito ASC LIMIT 8";
+        try (Connection conn = Conexion.abrir();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                distritos.add(new Object[]{
+                    rs.getString("distrito"),
+                    rs.getBigDecimal("total"),
+                    Integer.valueOf(rs.getInt("ventas"))
+                });
+            }
+        }
+        return distritos;
+    }
+
+    private DashboardDatos cargarSinProcedimiento(LocalDate desde, LocalDate hasta, boolean canceladas)
+            throws SQLException {
+        return new DashboardDatos(
+                ventasHoy(),
+                ventasSemana(),
+                ventasMes(),
+                totalClientes(),
+                totalProductos(),
+                productosStockBajo(),
+                ventasPorDistrito(),
+                ventasPorRango(desde, hasta, canceladas));
+    }
+
+    private List<Object[]> leerDistritos(ResultSet rs) throws SQLException {
+        List<Object[]> distritos = new ArrayList<Object[]>();
+        while (rs.next()) {
+            distritos.add(new Object[]{
+                rs.getString("distrito"),
+                rs.getBigDecimal("total"),
+                Integer.valueOf(rs.getInt("ventas"))
+            });
+        }
+        return distritos;
+    }
+
+    private List<Object[]> leerVentas(ResultSet rs) throws SQLException {
+        List<Object[]> ventas = new ArrayList<Object[]>();
+        while (rs.next()) {
+            ventas.add(new Object[]{
+                rs.getLong("id_venta"),
+                rs.getTimestamp("fecha_venta"),
+                rs.getString("nombre_completo"),
+                rs.getString("dni_ruc"),
+                rs.getBigDecimal("total"),
+                VentaEstado.normalizar(rs.getString("estado"))
+            });
+        }
+        return ventas;
+    }
+
+    public VentaTicket obtenerVentaTicket(long idVenta) throws SQLException {
+        String ventaSql = "SELECT v.id_venta, "
+                + "COALESCE(NULLIF(v.documento_comprobante, ''), c.dni_ruc) AS documento_comprobante, "
+                + "v.fecha_venta, v.total, v.estado, c.id_cliente, c.nombre_completo, c.numero, "
+                + "c.dni_ruc, c.direccion, c.id_distrito, COALESCE(d.nombre, 'Otro') AS distrito "
+                + "FROM venta v INNER JOIN cliente c ON c.id_cliente = v.id_cliente "
+                + "LEFT JOIN distritos d ON d.id_distrito = c.id_distrito "
+                + "WHERE v.id_venta = ?";
+        String detalleSql = "SELECT d.id_producto, COALESCE(p.nombre_producto, CONCAT('Producto ', d.id_producto)) AS producto, "
+                + "d.precio, d.cantidad "
+                + "FROM detalle_venta d LEFT JOIN producto p ON p.id_producto = d.id_producto "
+                + "WHERE d.id_venta = ? ORDER BY d.id_detalle";
+
+        try (Connection conn = Conexion.abrir()) {
+            Cliente cliente;
+            String documento;
+            LocalDateTime fecha;
+            BigDecimal total;
+            String estado;
+
+            try (PreparedStatement ps = conn.prepareStatement(ventaSql)) {
+                ps.setLong(1, idVenta);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next()) {
+                        throw new SQLException("La venta seleccionada ya no existe.");
+                    }
+                    cliente = new Cliente(
+                            rs.getInt("id_cliente"),
+                            rs.getString("nombre_completo"),
+                            rs.getString("numero"),
+                            rs.getString("dni_ruc"),
+                            rs.getString("direccion"),
+                            rs.getInt("id_distrito"),
+                            rs.getString("distrito"));
+                    documento = rs.getString("documento_comprobante");
+                    Timestamp timestamp = rs.getTimestamp("fecha_venta");
+                    fecha = timestamp == null ? LocalDateTime.now() : timestamp.toLocalDateTime();
+                    total = rs.getBigDecimal("total");
+                    estado = VentaEstado.normalizar(rs.getString("estado"));
+                }
+            }
+
+            List<LineaVenta> lineas = new ArrayList<LineaVenta>();
+            try (PreparedStatement ps = conn.prepareStatement(detalleSql)) {
+                ps.setLong(1, idVenta);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        lineas.add(new LineaVenta(
+                                rs.getInt("id_producto"),
+                                rs.getString("producto"),
+                                rs.getBigDecimal("precio"),
+                                rs.getInt("cantidad")));
+                    }
+                }
+            }
+
+            if (lineas.isEmpty()) {
+                throw new SQLException("La venta seleccionada no tiene detalle para exportar.");
+            }
+            return new VentaTicket(idVenta, cliente, documento, fecha, total, lineas, estado);
+        }
+    }
+
+    private int entero(String sql) throws SQLException {
+        try (Connection conn = Conexion.abrir();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            return rs.next() ? rs.getInt(1) : 0;
+        }
+    }
+
+    private BigDecimal ventasPorPeriodo(LocalDate desde, LocalDate hastaExclusivo) throws SQLException {
+        String sql = "SELECT COALESCE(SUM(total), 0) FROM venta "
+                + "WHERE fecha_venta >= ? AND fecha_venta < ? AND estado IN ('VENDIDA', 'PAGADA')";
+        try (Connection conn = Conexion.abrir();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setTimestamp(1, Timestamp.valueOf(desde.atStartOfDay()));
+            ps.setTimestamp(2, Timestamp.valueOf(hastaExclusivo.atStartOfDay()));
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getBigDecimal(1) : BigDecimal.ZERO;
+            }
+        }
+    }
+}

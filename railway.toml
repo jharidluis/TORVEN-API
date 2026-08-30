@@ -1,0 +1,8 @@
+[build]
+builder = "NIXPACKS"
+buildCommand = "mvn -B -Papi -DskipTests package"
+
+[deploy]
+startCommand = "java -jar target/sistema-venta-tienda-*-all.jar"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

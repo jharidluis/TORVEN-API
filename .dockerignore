@@ -1,0 +1,13 @@
+target/
+.m2/
+packaging/
+salida/
+vouchers/
+database/
+docs/
+assets/
+config/
+.git/
+.vscode/
+.idea/
+nbproject/
