@@ -11,6 +11,7 @@ import dao.VentaDAO;
 import io.javalin.Javalin;
 import io.javalin.http.BadRequestResponse;
 import io.javalin.http.Context;
+import io.javalin.http.ForbiddenResponse;
 import io.javalin.http.HttpResponseException;
 import io.javalin.http.UnauthorizedResponse;
 import io.javalin.http.staticfiles.Location;
@@ -21,6 +22,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import modelos.Cliente;
+import modelos.Distrito;
 import modelos.LineaVenta;
 import modelos.Usuario;
 import modelos.VentaTicket;
@@ -40,6 +43,7 @@ public final class ApiMain {
     private static final ProductoDAO productoDAO = new ProductoDAO();
     private static final VentaDAO ventaDAO = new VentaDAO();
     private static final TokenStore tokens = new TokenStore();
+    private static final LoginThrottle loginThrottle = new LoginThrottle();
 
     private ApiMain() {
     }
@@ -52,14 +56,19 @@ public final class ApiMain {
         int puerto = puertoDesdeEntorno();
         Javalin app = Javalin.create(config -> {
             config.addStaticFiles("/public", Location.CLASSPATH);
-            config.enableCorsForAllOrigins();
             config.jsonMapper(new JavalinJackson(mapper));
+            // Sin CORS: la PWA se sirve desde este mismo servidor, no necesita
+            // que otros origenes puedan llamar a la API.
         }).start(puerto);
+
+        app.before(ApiMain::aplicarCabecerasSeguridad);
 
         app.post("/api/login", ApiMain::login);
         app.post("/api/logout", ApiMain::logout);
         app.get("/api/productos", ApiMain::listarProductos);
         app.get("/api/clientes", ApiMain::listarClientes);
+        app.post("/api/clientes", ApiMain::crearCliente);
+        app.get("/api/distritos", ApiMain::listarDistritos);
         app.post("/api/ventas", ApiMain::registrarVenta);
 
         app.exception(HttpResponseException.class, (ex, ctx) -> {
@@ -85,7 +94,30 @@ public final class ApiMain {
         }
     }
 
+    private static void aplicarCabecerasSeguridad(Context ctx) {
+        ctx.header("X-Content-Type-Options", "nosniff");
+        ctx.header("X-Frame-Options", "DENY");
+        ctx.header("Referrer-Policy", "no-referrer");
+        ctx.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+        ctx.header("Content-Security-Policy",
+                "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+                        + "script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'");
+    }
+
+    private static String ipCliente(Context ctx) {
+        String reenviada = ctx.header("X-Forwarded-For");
+        if (reenviada != null && !reenviada.trim().isEmpty()) {
+            return reenviada.split(",")[0].trim();
+        }
+        return ctx.ip();
+    }
+
     private static void login(Context ctx) throws SQLException {
+        String ip = ipCliente(ctx);
+        if (loginThrottle.bloqueado(ip)) {
+            throw new ForbiddenResponse("Demasiados intentos fallidos. Espera unos minutos e intenta de nuevo.");
+        }
+
         LoginRequest cuerpo = ctx.bodyAsClass(LoginRequest.class);
         if (cuerpo.usuario == null || cuerpo.usuario.trim().isEmpty()
                 || cuerpo.clave == null || cuerpo.clave.isEmpty()) {
@@ -93,8 +125,10 @@ public final class ApiMain {
         }
         Usuario usuario = usuarioDAO.autenticar(cuerpo.usuario, cuerpo.clave.toCharArray());
         if (usuario == null) {
+            loginThrottle.registrarFallo(ip);
             throw new UnauthorizedResponse("Usuario o clave incorrectos.");
         }
+        loginThrottle.registrarExito(ip);
         String token = tokens.crear(usuario);
         ctx.json(new LoginResponse(token, usuario));
     }
@@ -120,6 +154,40 @@ public final class ApiMain {
     private static void listarClientes(Context ctx) throws SQLException {
         autenticado(ctx);
         ctx.json(clienteDAO.listar(ctx.queryParam("buscar")));
+    }
+
+    private static void listarDistritos(Context ctx) throws SQLException {
+        autenticado(ctx);
+        ctx.json(clienteDAO.listarDistritos());
+    }
+
+    private static void crearCliente(Context ctx) throws SQLException {
+        Usuario usuario = autenticado(ctx);
+        ClienteRequest cuerpo = ctx.bodyAsClass(ClienteRequest.class);
+        if (cuerpo.nombre == null || cuerpo.nombre.trim().isEmpty()) {
+            throw new BadRequestResponse("Ingresa el nombre del cliente.");
+        }
+        if (cuerpo.direccion == null || cuerpo.direccion.trim().isEmpty()) {
+            throw new BadRequestResponse("Ingresa la direccion del cliente.");
+        }
+
+        Cliente cliente = new Cliente();
+        cliente.setNombre(cuerpo.nombre);
+        cliente.setNumero(cuerpo.numero == null ? "" : cuerpo.numero);
+        cliente.setDireccion(cuerpo.direccion);
+        if (cuerpo.idDistrito > 0) {
+            cliente.setIdDistrito(cuerpo.idDistrito);
+        } else {
+            cliente.setDistrito(cuerpo.distrito == null ? "" : cuerpo.distrito);
+        }
+
+        AuditoriaContext.establecer(usuario);
+        try {
+            clienteDAO.guardar(cliente);
+            ctx.json(clienteDAO.obtenerPorId(cliente.getId()));
+        } finally {
+            AuditoriaContext.limpiar();
+        }
     }
 
     private static void registrarVenta(Context ctx) throws SQLException {

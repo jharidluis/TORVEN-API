@@ -113,7 +113,7 @@ public class DashboardDAO {
         LocalDate fechaHasta = hasta == null ? fechaDesde : hasta;
         List<Object[]> ventas = new ArrayList<Object[]>();
         String sql = "SELECT v.id_venta, v.fecha_venta, c.nombre_completo, "
-                + "COALESCE(NULLIF(v.documento_comprobante, ''), c.dni_ruc) AS dni_ruc, "
+                + "COALESCE(v.documento_comprobante, '') AS dni_ruc, "
                 + "v.total, v.estado "
                 + "FROM venta v INNER JOIN cliente c ON c.id_cliente = v.id_cliente "
                 + "WHERE v.fecha_venta >= ? AND v.fecha_venta < ? "
@@ -208,9 +208,9 @@ public class DashboardDAO {
 
     public VentaTicket obtenerVentaTicket(long idVenta) throws SQLException {
         String ventaSql = "SELECT v.id_venta, "
-                + "COALESCE(NULLIF(v.documento_comprobante, ''), c.dni_ruc) AS documento_comprobante, "
+                + "COALESCE(v.documento_comprobante, '') AS documento_comprobante, "
                 + "v.fecha_venta, v.total, v.estado, c.id_cliente, c.nombre_completo, c.numero, "
-                + "c.dni_ruc, c.direccion, c.id_distrito, COALESCE(d.nombre, 'Otro') AS distrito "
+                + "c.direccion, c.id_distrito, COALESCE(d.nombre, 'Otro') AS distrito "
                 + "FROM venta v INNER JOIN cliente c ON c.id_cliente = v.id_cliente "
                 + "LEFT JOIN distritos d ON d.id_distrito = c.id_distrito "
                 + "WHERE v.id_venta = ?";
@@ -236,7 +236,6 @@ public class DashboardDAO {
                             rs.getInt("id_cliente"),
                             rs.getString("nombre_completo"),
                             rs.getString("numero"),
-                            rs.getString("dni_ruc"),
                             rs.getString("direccion"),
                             rs.getInt("id_distrito"),
                             rs.getString("distrito"));

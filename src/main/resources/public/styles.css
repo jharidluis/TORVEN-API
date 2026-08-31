@@ -1,13 +1,13 @@
 :root {
-  --fondo: #0f172a;
-  --superficie: #1a2540;
-  --superficie-clara: #24325a;
-  --primario: #22c55e;
-  --primario-oscuro: #16a34a;
-  --texto: #f1f5f9;
-  --texto-tenue: #94a3b8;
-  --peligro: #f87171;
-  --borde: #33406b;
+  --fondo: #000000;
+  --superficie: #141414;
+  --superficie-clara: #232323;
+  --primario: #ffffff;
+  --primario-oscuro: #d4d4d4;
+  --texto: #ffffff;
+  --texto-tenue: #9a9a9a;
+  --peligro: #ff5c5c;
+  --borde: #3a3a3a;
 }
 
 * {
@@ -99,7 +99,7 @@ input:focus {
 .boton-primario {
   margin-top: 22px;
   background: var(--primario);
-  color: #06210f;
+  color: #000000;
   border: none;
   padding: 15px;
   border-radius: 14px;
@@ -140,7 +140,7 @@ input:focus {
   line-height: 72px;
   border-radius: 50%;
   background: var(--primario);
-  color: #06210f;
+  color: #000000;
   font-size: 34px;
   margin: 0 auto 18px;
 }
@@ -234,7 +234,7 @@ input:focus {
   align-items: center;
   justify-content: space-between;
   background: var(--primario);
-  color: #06210f;
+  color: #000000;
   border-radius: 12px;
   padding: 10px 14px;
   font-weight: 600;
@@ -244,7 +244,7 @@ input:focus {
 .boton-quitar {
   background: none;
   border: none;
-  color: #06210f;
+  color: #000000;
   font-size: 20px;
   line-height: 1;
   cursor: pointer;
@@ -323,4 +323,44 @@ input:focus {
 .fila-total strong {
   font-size: 22px;
   color: var(--primario);
+}
+
+.segmentado {
+  display: flex;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 12px;
+}
+
+.segmento {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--texto-tenue);
+  padding: 10px 8px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.segmento.activo {
+  background: var(--primario);
+  color: #000000;
+}
+
+#cliente-modo-nuevo label {
+  display: block;
+  margin-top: 10px;
+}
+
+#cliente-modo-nuevo .campo-buscar {
+  margin-top: 4px;
+}
+
+select.campo-buscar {
+  appearance: none;
+  -webkit-appearance: none;
 }

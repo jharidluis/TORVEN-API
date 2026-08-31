@@ -71,9 +71,9 @@ public class VentasPanel extends JPanel {
     private final JPanel panelClienteContenido = new JPanel(clienteLayout);
     private final JLabel lblClienteNombre = new JLabel("Cliente no seleccionado");
     private final JLabel lblClienteDetalle = new JLabel("Busca y selecciona un cliente");
-    private final DefaultTableModel modeloClientes = Ui.modelo("ID", "Cliente", "DNI/RUC", "Distrito");
+    private final DefaultTableModel modeloClientes = Ui.modelo("ID", "Cliente", "Telefono", "Distrito");
     private final DefaultTableModel modeloProductos = Ui.modelo("ID", "Producto", "Precio", "Stock");
-    private final DefaultTableModel modeloReservas = Ui.modelo("Reserva", "Fecha", "Cliente", "DNI/RUC", "Total");
+    private final DefaultTableModel modeloReservas = Ui.modelo("Reserva", "Fecha", "Cliente", "Comprobante", "Total");
     private final DefaultTableModel modeloCarrito = new DefaultTableModel(
             new Object[]{"ID", "Producto", "Precio unit.", "Cant.", "Subtotal"}, 0) {
         @Override
@@ -295,7 +295,7 @@ public class VentasPanel extends JPanel {
         JLabel titulo = new JLabel("Cliente");
         titulo.setFont(titulo.getFont().deriveFont(Font.BOLD, 15f));
         titulo.setForeground(Ui.COLOR_TEXTO);
-        JLabel detalle = new JLabel("Buscar por DNI/RUC, telefono, distrito o nombre");
+        JLabel detalle = new JLabel("Buscar por telefono, distrito o nombre");
         detalle.setForeground(Ui.COLOR_MUTED);
         textos.add(titulo);
         textos.add(detalle);
@@ -521,7 +521,7 @@ public class VentasPanel extends JPanel {
                 mostrarBusquedaCliente();
             } else {
                 actualizarClienteSeleccionado(carga.seleccionado.getId(), carga.seleccionado.getNombre(),
-                        carga.seleccionado.getDniRuc(), carga.seleccionado.getDistrito());
+                        carga.seleccionado.getNumero(), carga.seleccionado.getDistrito());
             }
         }
 
@@ -532,7 +532,7 @@ public class VentasPanel extends JPanel {
                 modeloClientes.addRow(new Object[]{
                     cliente.getId(),
                     cliente.getNombre(),
-                    texto(cliente.getDniRuc()),
+                    texto(cliente.getNumero()),
                     texto(cliente.getDistrito())
                 });
             }
@@ -954,16 +954,16 @@ public class VentasPanel extends JPanel {
         int modelRow = tablaClientes.convertRowIndexToModel(row);
         int id = ((Integer) modeloClientes.getValueAt(modelRow, 0)).intValue();
         String nombre = String.valueOf(modeloClientes.getValueAt(modelRow, 1));
-        String dniRuc = String.valueOf(modeloClientes.getValueAt(modelRow, 2));
+        String telefono = String.valueOf(modeloClientes.getValueAt(modelRow, 2));
         String distrito = String.valueOf(modeloClientes.getValueAt(modelRow, 3));
-        actualizarClienteSeleccionado(id, nombre, dniRuc, distrito);
+        actualizarClienteSeleccionado(id, nombre, telefono, distrito);
         mostrarClienteSeleccionado();
     }
 
-    private void actualizarClienteSeleccionado(int id, String nombre, String dniRuc, String distrito) {
+    private void actualizarClienteSeleccionado(int id, String nombre, String telefono, String distrito) {
         clienteSeleccionadoId = id;
         lblClienteNombre.setText(nombre == null || nombre.trim().isEmpty() ? "Cliente seleccionado" : nombre.trim());
-        String documento = dniRuc == null || dniRuc.trim().isEmpty() ? "Sin DNI/RUC" : "DNI/RUC: " + dniRuc.trim();
+        String documento = telefono == null || telefono.trim().isEmpty() ? "Sin telefono" : "Telefono: " + telefono.trim();
         String distritoTexto = distrito == null || distrito.trim().isEmpty() ? "Sin distrito" : "Distrito: " + distrito.trim();
         lblClienteDetalle.setText(documento + " | " + distritoTexto);
     }

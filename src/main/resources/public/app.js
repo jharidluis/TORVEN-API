@@ -4,7 +4,9 @@
   const estado = {
     token: localStorage.getItem('torven_token'),
     usuario: JSON.parse(localStorage.getItem('torven_usuario') || 'null'),
+    clienteModo: 'registrado', // 'registrado' o 'nuevo'
     cliente: null,
+    distritos: [],
     carrito: [] // { idProducto, nombre, precio, stock, cantidad }
   };
 
@@ -40,6 +42,7 @@
     el('nombre-usuario').textContent = estado.usuario.nombre || estado.usuario.usuario;
     el('rol-usuario').textContent = estado.usuario.rol || '';
     mostrarPantalla(pantallaVenta);
+    cargarDistritosSiHaceFalta();
   }
 
   // ---------- Llamadas a la API ----------
@@ -107,9 +110,15 @@
     estado.token = null;
     estado.usuario = null;
     estado.cliente = null;
+    estado.clienteModo = 'registrado';
     estado.carrito = [];
     localStorage.removeItem('torven_token');
     localStorage.removeItem('torven_usuario');
+    document.querySelectorAll('#cliente-tipo .segmento').forEach(function (b) {
+      b.classList.toggle('activo', b.getAttribute('data-tipo') === 'registrado');
+    });
+    el('cliente-modo-registrado').classList.remove('oculto');
+    el('cliente-modo-nuevo').classList.add('oculto');
     actualizarCarritoUI();
     mostrarPantalla(pantallaLogin);
   }
@@ -155,6 +164,64 @@
     chipCliente.classList.add('oculto');
     actualizarBotonConfirmar();
   });
+
+  // ---------- Tipo de cliente: registrado o nuevo ----------
+
+  const modoRegistrado = el('cliente-modo-registrado');
+  const modoNuevo = el('cliente-modo-nuevo');
+  const selectDistrito = el('nuevo-cliente-distrito');
+
+  document.querySelectorAll('#cliente-tipo .segmento').forEach(function (boton) {
+    boton.addEventListener('click', function () {
+      document.querySelectorAll('#cliente-tipo .segmento').forEach(function (b) {
+        b.classList.remove('activo');
+      });
+      boton.classList.add('activo');
+      estado.clienteModo = boton.getAttribute('data-tipo');
+      modoRegistrado.classList.toggle('oculto', estado.clienteModo !== 'registrado');
+      modoNuevo.classList.toggle('oculto', estado.clienteModo !== 'nuevo');
+      actualizarBotonConfirmar();
+    });
+  });
+
+  let distritosCargados = false;
+
+  function cargarDistritosSiHaceFalta() {
+    if (distritosCargados) {
+      return;
+    }
+    apiFetch('/api/distritos').then(function (distritos) {
+      distritosCargados = true;
+      estado.distritos = distritos;
+      selectDistrito.innerHTML = '';
+      distritos.forEach(function (distrito) {
+        const opcion = document.createElement('option');
+        opcion.value = distrito.id;
+        opcion.textContent = distrito.nombre;
+        if (distrito.nombre === 'Otro') {
+          opcion.selected = true;
+        }
+        selectDistrito.appendChild(opcion);
+      });
+    }).catch(function () {
+      // Si falla, el select queda vacio; se puede reintentar mostrando la pantalla de nuevo.
+    });
+  }
+
+  ['nuevo-cliente-nombre', 'nuevo-cliente-direccion'].forEach(function (id) {
+    el(id).addEventListener('input', actualizarBotonConfirmar);
+  });
+
+  function datosClienteNuevoCompletos() {
+    return el('nuevo-cliente-nombre').value.trim().length > 0
+        && el('nuevo-cliente-direccion').value.trim().length > 0;
+  }
+
+  function limpiarFormularioClienteNuevo() {
+    el('nuevo-cliente-nombre').value = '';
+    el('nuevo-cliente-telefono').value = '';
+    el('nuevo-cliente-direccion').value = '';
+  }
 
   // ---------- Busqueda de productos ----------
 
@@ -263,33 +330,57 @@
   }
 
   function actualizarBotonConfirmar() {
-    el('boton-confirmar').disabled = !estado.cliente || estado.carrito.length === 0;
+    const hayCliente = estado.clienteModo === 'nuevo'
+        ? datosClienteNuevoCompletos()
+        : !!estado.cliente;
+    el('boton-confirmar').disabled = !hayCliente || estado.carrito.length === 0;
   }
 
   // ---------- Confirmar venta ----------
+
+  function obtenerIdCliente() {
+    if (estado.clienteModo === 'registrado') {
+      return Promise.resolve(estado.cliente.id);
+    }
+    const cuerpo = {
+      nombre: el('nuevo-cliente-nombre').value.trim(),
+      numero: el('nuevo-cliente-telefono').value.trim(),
+      direccion: el('nuevo-cliente-direccion').value.trim(),
+      idDistrito: Number(selectDistrito.value) || 0
+    };
+    return apiFetch('/api/clientes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cuerpo)
+    }).then(function (clienteCreado) {
+      return clienteCreado.id;
+    });
+  }
 
   el('boton-confirmar').addEventListener('click', function () {
     const boton = el('boton-confirmar');
     boton.disabled = true;
     el('error-venta').textContent = '';
 
-    const cuerpo = {
-      idCliente: estado.cliente.id,
-      lineas: estado.carrito.map(function (l) {
-        return { idProducto: l.idProducto, cantidad: l.cantidad };
-      })
-    };
-
-    apiFetch('/api/ventas', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(cuerpo)
+    obtenerIdCliente().then(function (idCliente) {
+      const cuerpo = {
+        idCliente: idCliente,
+        lineas: estado.carrito.map(function (l) {
+          return { idProducto: l.idProducto, cantidad: l.cantidad };
+        })
+      };
+      return apiFetch('/api/ventas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cuerpo)
+      });
     }).then(function (ticket) {
       el('detalle-confirmacion').textContent =
         'Venta #' + ticket.idVenta + ' - Total S/ ' + Number(ticket.total).toFixed(2);
       estado.cliente = null;
       estado.carrito = [];
       chipCliente.classList.add('oculto');
+      limpiarFormularioClienteNuevo();
       actualizarCarritoUI();
       mostrarPantalla(pantallaConfirmacion);
     }).catch(function (error) {

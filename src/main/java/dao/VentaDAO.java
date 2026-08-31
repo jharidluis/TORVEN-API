@@ -43,7 +43,7 @@ public class VentaDAO {
             if (cliente == null) {
                 throw new SQLException("El cliente seleccionado ya no existe.");
             }
-            String documento = limpiarDocumento(cliente);
+            String documento = "";
 
             List<LineaVenta> lineasFinales = validarYCongelarPrecios(conn, carrito);
             BigDecimal total = total(lineasFinales);
@@ -141,7 +141,7 @@ public class VentaDAO {
     private List<Object[]> listarReservasSinProcedimiento() throws SQLException {
         List<Object[]> reservas = new ArrayList<Object[]>();
         String sql = "SELECT v.id_venta, v.fecha_venta, c.nombre_completo, "
-                + "COALESCE(NULLIF(v.documento_comprobante, ''), c.dni_ruc) AS dni_ruc, v.total "
+                + "COALESCE(v.documento_comprobante, '') AS dni_ruc, v.total "
                 + "FROM venta v INNER JOIN cliente c ON c.id_cliente = v.id_cliente "
                 + "WHERE v.estado = ? "
                 + "ORDER BY v.fecha_venta ASC";
@@ -307,15 +307,5 @@ public class VentaDAO {
             total = total.add(linea.getSubtotal());
         }
         return total.setScale(2, RoundingMode.HALF_UP);
-    }
-
-    private String limpiarDocumento(Cliente cliente) throws SQLException {
-        String documento = cliente == null ? "" : cliente.getDniRuc();
-        documento = documento == null ? "" : documento.trim();
-        documento = documento.trim();
-        if (!documento.isEmpty() && !documento.matches("[0-9]{8}|[0-9]{11}")) {
-            throw new SQLException("Revisa el DNI/RUC del cliente. Debe tener 8 u 11 digitos.");
-        }
-        return documento;
     }
 }

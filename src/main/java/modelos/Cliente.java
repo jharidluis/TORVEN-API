@@ -4,7 +4,6 @@ public class Cliente {
     private int id;
     private String nombre;
     private String numero;
-    private String dniRuc;
     private String direccion;
     private int idDistrito;
     private String distrito;
@@ -13,15 +12,14 @@ public class Cliente {
     }
 
     public Cliente(int id, String nombre, String numero, String direccion) {
-        this(id, nombre, numero, "", direccion, 0, "");
+        this(id, nombre, numero, direccion, 0, "");
     }
 
-    public Cliente(int id, String nombre, String numero, String dniRuc, String direccion,
+    public Cliente(int id, String nombre, String numero, String direccion,
             int idDistrito, String distrito) {
         this.id = id;
         this.nombre = nombre;
         this.numero = numero;
-        this.dniRuc = dniRuc;
         this.direccion = direccion;
         this.idDistrito = idDistrito;
         this.distrito = distrito;
@@ -49,14 +47,6 @@ public class Cliente {
 
     public void setNumero(String numero) {
         this.numero = numero;
-    }
-
-    public String getDniRuc() {
-        return dniRuc;
-    }
-
-    public void setDniRuc(String dniRuc) {
-        this.dniRuc = dniRuc;
     }
 
     public String getDireccion() {

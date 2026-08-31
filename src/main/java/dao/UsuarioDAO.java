@@ -1,6 +1,8 @@
 package dao;
 
 import configuracion.Conexion;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -19,9 +21,13 @@ public class UsuarioDAO {
                 if (!rs.next()) {
                     return null;
                 }
-                String hashIngresado = PasswordUtil.hash(new String(clave));
+                String hashIngresado = PasswordUtil.hash(new String(clave)).toLowerCase();
                 String hashGuardado = rs.getString("clave_hash");
-                if (!hashIngresado.equalsIgnoreCase(hashGuardado)) {
+                hashGuardado = hashGuardado == null ? "" : hashGuardado.toLowerCase();
+                boolean coincide = MessageDigest.isEqual(
+                        hashIngresado.getBytes(StandardCharsets.UTF_8),
+                        hashGuardado.getBytes(StandardCharsets.UTF_8));
+                if (!coincide) {
                     return null;
                 }
                 return new Usuario(

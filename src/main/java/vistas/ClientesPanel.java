@@ -37,12 +37,11 @@ public class ClientesPanel extends JPanel {
     private final JTextField txtId = new JTextField(8);
     private final JTextField txtNombre = new JTextField(24);
     private final JTextField txtTelefono = new JTextField(16);
-    private final JTextField txtDniRuc = new JTextField(16);
     private final JTextField txtDireccion = new JTextField(28);
     private final JComboBox<Distrito> cboDistrito = new JComboBox<Distrito>();
     private final JTextField txtBuscar = new JTextField(24);
     private final JTable tabla = new JTable();
-    private final DefaultTableModel modelo = Ui.modelo("ID", "Nombre completo", "Telefono", "DNI/RUC",
+    private final DefaultTableModel modelo = Ui.modelo("ID", "Nombre completo", "Telefono",
             "Direccion", "Distrito", "ID Distrito");
     private final JButton btnLimpiar = new JButton("Limpiar");
     private final JButton btnGuardar = new JButton("Nuevo cliente");
@@ -108,8 +107,7 @@ public class ClientesPanel extends JPanel {
             modelo.addRow(new Object[]{
                 cliente.getId(),
                 cliente.getNombre(),
-                cliente.getNumero(),
-                texto(cliente.getDniRuc()),
+                texto(cliente.getNumero()),
                 cliente.getDireccion(),
                 texto(cliente.getDistrito()),
                 cliente.getIdDistrito()
@@ -135,8 +133,7 @@ public class ClientesPanel extends JPanel {
 
         agregar(formulario, c, 0, 0, "ID", txtId);
         agregar(formulario, c, 1, 0, "Nombre completo", txtNombre);
-        agregar(formulario, c, 2, 0, "Telefono", txtTelefono);
-        agregar(formulario, c, 3, 0, "DNI/RUC", txtDniRuc);
+        agregar(formulario, c, 2, 0, "Telefono (opcional)", txtTelefono);
         agregar(formulario, c, 0, 2, "Direccion", txtDireccion);
         prepararComboDistrito();
         agregar(formulario, c, 1, 2, "Distrito", cboDistrito);
@@ -168,7 +165,7 @@ public class ClientesPanel extends JPanel {
     private void construirTabla() {
         tabla.setModel(modelo);
         Ui.prepararTabla(tabla);
-        Ui.ocultarColumna(tabla, 6);
+        Ui.ocultarColumna(tabla, 5);
         tabla.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 seleccionar();
@@ -236,7 +233,6 @@ public class ClientesPanel extends JPanel {
             cliente.setId(txtId.getText().trim().isEmpty() ? 0 : Integer.parseInt(txtId.getText().trim()));
             cliente.setNombre(txtNombre.getText());
             cliente.setNumero(txtTelefono.getText());
-            cliente.setDniRuc(txtDniRuc.getText());
             cliente.setDireccion(txtDireccion.getText());
             Distrito distrito = distritoSeleccionado();
             if (distrito != null) {
@@ -270,14 +266,13 @@ public class ClientesPanel extends JPanel {
     private void mostrarEliminados() {
         Window owner = SwingUtilities.getWindowAncestor(this);
         final JDialog dialog = new JDialog(owner, "Clientes eliminados", Dialog.ModalityType.APPLICATION_MODAL);
-        final DefaultTableModel modeloEliminados = Ui.modelo("ID", "Nombre completo", "Telefono", "DNI/RUC", "Distrito");
+        final DefaultTableModel modeloEliminados = Ui.modelo("ID", "Nombre completo", "Telefono", "Distrito");
         final JTable tablaEliminados = new JTable(modeloEliminados);
         Ui.prepararTabla(tablaEliminados);
         Ui.ocultarColumna(tablaEliminados, 0);
         Ui.anchoColumna(tablaEliminados, 1, 260);
         Ui.anchoColumna(tablaEliminados, 2, 110);
-        Ui.anchoColumna(tablaEliminados, 3, 100);
-        Ui.anchoColumna(tablaEliminados, 4, 160);
+        Ui.anchoColumna(tablaEliminados, 3, 160);
 
         JButton btnReactivar = new JButton("Reactivar");
         JButton btnCerrar = new JButton("Cerrar");
@@ -316,8 +311,7 @@ public class ClientesPanel extends JPanel {
                 modeloEliminados.addRow(new Object[]{
                     cliente.getId(),
                     cliente.getNombre(),
-                    cliente.getNumero(),
-                    texto(cliente.getDniRuc()),
+                    texto(cliente.getNumero()),
                     texto(cliente.getDistrito())
                 });
             }
@@ -351,13 +345,12 @@ public class ClientesPanel extends JPanel {
         txtId.setText(String.valueOf(modelo.getValueAt(row, 0)));
         txtNombre.setText(String.valueOf(modelo.getValueAt(row, 1)));
         txtTelefono.setText(String.valueOf(modelo.getValueAt(row, 2)));
-        txtDniRuc.setText(String.valueOf(modelo.getValueAt(row, 3)));
-        txtDireccion.setText(String.valueOf(modelo.getValueAt(row, 4)));
-        Object idDistrito = modelo.getValueAt(row, 6);
+        txtDireccion.setText(String.valueOf(modelo.getValueAt(row, 3)));
+        Object idDistrito = modelo.getValueAt(row, 5);
         if (idDistrito instanceof Number) {
             seleccionarDistritoPorId(((Number) idDistrito).intValue());
         } else {
-            seleccionarDistritoPorNombre(String.valueOf(modelo.getValueAt(row, 5)));
+            seleccionarDistritoPorNombre(String.valueOf(modelo.getValueAt(row, 4)));
         }
         actualizarModoFormulario();
     }
@@ -366,7 +359,6 @@ public class ClientesPanel extends JPanel {
         txtId.setText("");
         txtNombre.setText("");
         txtTelefono.setText("");
-        txtDniRuc.setText("");
         txtDireccion.setText("");
         seleccionarDistritoPorNombre("Otro");
         tabla.clearSelection();

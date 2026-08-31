@@ -32,11 +32,11 @@ public class ClienteDAO {
 
     private List<Cliente> listarPorEstado(String texto, boolean activo) throws SQLException {
         List<Cliente> clientes = new ArrayList<Cliente>();
-        String sql = "SELECT c.id_cliente, c.nombre_completo, c.numero, c.dni_ruc, c.direccion, "
+        String sql = "SELECT c.id_cliente, c.nombre_completo, c.numero, c.direccion, "
                 + "c.id_distrito, COALESCE(d.nombre, 'Otro') AS distrito "
                 + "FROM cliente c LEFT JOIN distritos d ON d.id_distrito = c.id_distrito "
                 + "WHERE c.activo = ? AND (? = '' OR c.nombre_completo LIKE ? OR c.numero LIKE ? "
-                + "OR c.dni_ruc LIKE ? OR d.nombre LIKE ?) "
+                + "OR d.nombre LIKE ?) "
                 + "ORDER BY c.nombre_completo";
 
         try (Connection conn = Conexion.abrir();
@@ -46,7 +46,6 @@ public class ClienteDAO {
             ps.setString(3, "%" + texto + "%");
             ps.setString(4, "%" + texto + "%");
             ps.setString(5, "%" + texto + "%");
-            ps.setString(6, "%" + texto + "%");
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     clientes.add(mapear(rs));
@@ -71,7 +70,7 @@ public class ClienteDAO {
     }
 
     public Cliente obtenerPorId(Connection conn, int id) throws SQLException {
-        String sql = "SELECT c.id_cliente, c.nombre_completo, c.numero, c.dni_ruc, c.direccion, "
+        String sql = "SELECT c.id_cliente, c.nombre_completo, c.numero, c.direccion, "
                 + "c.id_distrito, COALESCE(d.nombre, 'Otro') AS distrito "
                 + "FROM cliente c LEFT JOIN distritos d ON d.id_distrito = c.id_distrito "
                 + "WHERE c.id_cliente = ? AND c.activo = 1";
@@ -155,14 +154,13 @@ public class ClienteDAO {
             return;
         }
 
-        String sql = "INSERT INTO cliente(nombre_completo, numero, dni_ruc, direccion, id_distrito, activo) "
-                + "VALUES (?, ?, ?, ?, ?, 1)";
+        String sql = "INSERT INTO cliente(nombre_completo, numero, direccion, id_distrito, activo) "
+                + "VALUES (?, ?, ?, ?, 1)";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, cliente.getNombre());
-            ps.setString(2, cliente.getNumero());
-            ps.setString(3, cliente.getDniRuc());
-            ps.setString(4, cliente.getDireccion());
-            ps.setInt(5, cliente.getIdDistrito());
+            ps.setString(2, cliente.getNumero().isEmpty() ? null : cliente.getNumero());
+            ps.setString(3, cliente.getDireccion());
+            ps.setInt(4, cliente.getIdDistrito());
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 if (keys.next()) {
@@ -174,30 +172,28 @@ public class ClienteDAO {
 
     private void insertarConId(Connection conn, Cliente cliente) throws SQLException {
         int id = SqlIds.siguienteInt(conn, "cliente", "id_cliente");
-        String sql = "INSERT INTO cliente(id_cliente, nombre_completo, numero, dni_ruc, direccion, id_distrito, activo) "
-                + "VALUES (?, ?, ?, ?, ?, ?, 1)";
+        String sql = "INSERT INTO cliente(id_cliente, nombre_completo, numero, direccion, id_distrito, activo) "
+                + "VALUES (?, ?, ?, ?, ?, 1)";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, id);
             ps.setString(2, cliente.getNombre());
-            ps.setString(3, cliente.getNumero());
-            ps.setString(4, cliente.getDniRuc());
-            ps.setString(5, cliente.getDireccion());
-            ps.setInt(6, cliente.getIdDistrito());
+            ps.setString(3, cliente.getNumero().isEmpty() ? null : cliente.getNumero());
+            ps.setString(4, cliente.getDireccion());
+            ps.setInt(5, cliente.getIdDistrito());
             ps.executeUpdate();
             cliente.setId(id);
         }
     }
 
     private void actualizar(Connection conn, Cliente cliente) throws SQLException {
-        String sql = "UPDATE cliente SET nombre_completo = ?, numero = ?, dni_ruc = ?, "
+        String sql = "UPDATE cliente SET nombre_completo = ?, numero = ?, "
                 + "direccion = ?, id_distrito = ?, activo = 1 WHERE id_cliente = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, cliente.getNombre());
-            ps.setString(2, cliente.getNumero());
-            ps.setString(3, cliente.getDniRuc());
-            ps.setString(4, cliente.getDireccion());
-            ps.setInt(5, cliente.getIdDistrito());
-            ps.setInt(6, cliente.getId());
+            ps.setString(2, cliente.getNumero().isEmpty() ? null : cliente.getNumero());
+            ps.setString(3, cliente.getDireccion());
+            ps.setInt(4, cliente.getIdDistrito());
+            ps.setInt(5, cliente.getId());
             int filas = ps.executeUpdate();
             if (filas == 0) {
                 throw new SQLException("El cliente ya no existe.");
@@ -261,7 +257,6 @@ public class ClienteDAO {
                 rs.getInt("id_cliente"),
                 rs.getString("nombre_completo"),
                 rs.getString("numero"),
-                rs.getString("dni_ruc"),
                 rs.getString("direccion"),
                 rs.getInt("id_distrito"),
                 rs.getString("distrito")
@@ -272,25 +267,18 @@ public class ClienteDAO {
         if (cliente.getNombre() == null || cliente.getNombre().trim().isEmpty()) {
             throw new SQLException("Ingresa el nombre del cliente.");
         }
-        if (cliente.getNumero() == null || cliente.getNumero().trim().isEmpty()) {
-            throw new SQLException("Ingresa el telefono del cliente.");
-        }
         if (cliente.getDireccion() == null || cliente.getDireccion().trim().isEmpty()) {
             throw new SQLException("Ingresa la direccion del cliente.");
         }
         cliente.setNombre(limpiar(cliente.getNombre()));
         cliente.setNumero(limpiar(cliente.getNumero()));
-        cliente.setDniRuc(limpiar(cliente.getDniRuc()));
         cliente.setDireccion(limpiar(cliente.getDireccion()));
         cliente.setDistrito(limpiar(cliente.getDistrito()));
         if (cliente.getDistrito().isEmpty() && cliente.getIdDistrito() <= 0) {
             cliente.setDistrito("Otro");
         }
-        if (cliente.getNumero().length() < 6 || cliente.getNumero().length() > 20) {
+        if (!cliente.getNumero().isEmpty() && (cliente.getNumero().length() < 6 || cliente.getNumero().length() > 20)) {
             throw new SQLException("El telefono debe tener entre 6 y 20 caracteres.");
-        }
-        if (!cliente.getDniRuc().isEmpty() && !cliente.getDniRuc().matches("[0-9]{8}|[0-9]{11}")) {
-            throw new SQLException("El DNI debe tener 8 digitos o el RUC 11 digitos.");
         }
     }
 
