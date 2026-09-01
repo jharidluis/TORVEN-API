@@ -10,12 +10,14 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import modelos.Cliente;
 import modelos.LineaVenta;
 import modelos.Producto;
+import modelos.ReservaResumen;
 import modelos.VentaEstado;
 import modelos.VentaTicket;
 
@@ -24,10 +26,15 @@ public class VentaDAO {
     private final ProductoDAO productoDAO = new ProductoDAO();
 
     public VentaTicket registrarVenta(int idCliente, List<LineaVenta> carrito) throws SQLException {
-        return registrarReserva(idCliente, carrito);
+        return registrarReserva(idCliente, carrito, null);
     }
 
     public VentaTicket registrarReserva(int idCliente, List<LineaVenta> carrito) throws SQLException {
+        return registrarReserva(idCliente, carrito, null);
+    }
+
+    public VentaTicket registrarReserva(int idCliente, List<LineaVenta> carrito, LocalDateTime horaEntregaPactada)
+            throws SQLException {
         if (idCliente <= 0) {
             throw new SQLException("Selecciona un cliente.");
         }
@@ -47,12 +54,13 @@ public class VentaDAO {
 
             List<LineaVenta> lineasFinales = validarYCongelarPrecios(conn, carrito);
             BigDecimal total = total(lineasFinales);
-            long idVenta = insertarVenta(conn, idCliente, documento, total, VentaEstado.EN_PROCESO);
+            long idVenta = insertarVenta(conn, idCliente, documento, total, VentaEstado.EN_PROCESO,
+                    horaEntregaPactada);
             insertarDetallesYDescontarStock(conn, idVenta, lineasFinales);
 
             conn.commit();
             return new VentaTicket(idVenta, cliente, documento, LocalDateTime.now(), total,
-                    lineasFinales, VentaEstado.EN_PROCESO);
+                    lineasFinales, VentaEstado.EN_PROCESO, horaEntregaPactada);
         } catch (Exception ex) {
             try {
                 conn.rollback();
@@ -157,6 +165,37 @@ public class VentaDAO {
         return reservas;
     }
 
+    public List<ReservaResumen> listarReservasWeb() throws SQLException {
+        List<ReservaResumen> reservas = new ArrayList<ReservaResumen>();
+        String sql = "SELECT v.id_venta, v.fecha_venta, v.hora_entrega_pactada, v.total, v.estado, "
+                + "c.nombre_completo, c.numero, c.direccion, COALESCE(d.nombre, 'Otro') AS distrito "
+                + "FROM venta v INNER JOIN cliente c ON c.id_cliente = v.id_cliente "
+                + "LEFT JOIN distritos d ON d.id_distrito = c.id_distrito "
+                + "WHERE v.estado = ? "
+                + "ORDER BY v.hora_entrega_pactada ASC, v.fecha_venta ASC";
+        try (Connection conn = Conexion.abrir();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, VentaEstado.EN_PROCESO);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Timestamp fecha = rs.getTimestamp("fecha_venta");
+                    Timestamp horaEntrega = rs.getTimestamp("hora_entrega_pactada");
+                    reservas.add(new ReservaResumen(
+                            rs.getLong("id_venta"),
+                            fecha == null ? null : fecha.toLocalDateTime(),
+                            horaEntrega == null ? null : horaEntrega.toLocalDateTime(),
+                            rs.getString("nombre_completo"),
+                            rs.getString("numero"),
+                            rs.getString("direccion"),
+                            rs.getString("distrito"),
+                            rs.getBigDecimal("total"),
+                            rs.getString("estado")));
+                }
+            }
+        }
+        return reservas;
+    }
+
     private Object[] mapearReserva(ResultSet rs) throws SQLException {
         return new Object[]{
             rs.getLong("id_venta"),
@@ -191,19 +230,20 @@ public class VentaDAO {
         return lineas;
     }
 
-    private long insertarVenta(Connection conn, int idCliente, String documento, BigDecimal total, String estado)
-            throws SQLException {
+    private long insertarVenta(Connection conn, int idCliente, String documento, BigDecimal total, String estado,
+            LocalDateTime horaEntregaPactada) throws SQLException {
         if (SqlIds.requiereIdManual(conn, "venta", "id_venta")) {
-            return insertarVentaConId(conn, idCliente, documento, total, estado);
+            return insertarVentaConId(conn, idCliente, documento, total, estado, horaEntregaPactada);
         }
 
-        String sql = "INSERT INTO venta(id_cliente, documento_comprobante, fecha_venta, total, estado) "
-                + "VALUES (?, ?, NOW(), ?, ?)";
+        String sql = "INSERT INTO venta(id_cliente, documento_comprobante, fecha_venta, total, estado, "
+                + "hora_entrega_pactada) VALUES (?, ?, NOW(), ?, ?, ?)";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setInt(1, idCliente);
             ps.setString(2, documento);
             ps.setBigDecimal(3, total);
             ps.setString(4, estado);
+            ps.setTimestamp(5, horaEntregaPactada == null ? null : Timestamp.valueOf(horaEntregaPactada));
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 if (keys.next()) {
@@ -214,17 +254,18 @@ public class VentaDAO {
         throw new SQLException("No se genero el numero de venta.");
     }
 
-    private long insertarVentaConId(Connection conn, int idCliente, String documento, BigDecimal total, String estado)
-            throws SQLException {
+    private long insertarVentaConId(Connection conn, int idCliente, String documento, BigDecimal total, String estado,
+            LocalDateTime horaEntregaPactada) throws SQLException {
         long idVenta = SqlIds.siguienteLong(conn, "venta", "id_venta");
-        String sql = "INSERT INTO venta(id_venta, id_cliente, documento_comprobante, fecha_venta, total, estado) "
-                + "VALUES (?, ?, ?, NOW(), ?, ?)";
+        String sql = "INSERT INTO venta(id_venta, id_cliente, documento_comprobante, fecha_venta, total, estado, "
+                + "hora_entrega_pactada) VALUES (?, ?, ?, NOW(), ?, ?, ?)";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, idVenta);
             ps.setInt(2, idCliente);
             ps.setString(3, documento);
             ps.setBigDecimal(4, total);
             ps.setString(5, estado);
+            ps.setTimestamp(6, horaEntregaPactada == null ? null : Timestamp.valueOf(horaEntregaPactada));
             ps.executeUpdate();
         }
         return idVenta;

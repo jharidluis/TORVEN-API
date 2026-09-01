@@ -43,6 +43,12 @@
     <button id="boton-salir" class="boton-texto">Salir</button>
   </header>
 
+  <div id="tabs-principales" class="segmentado tabs-principales">
+    <button type="button" class="segmento activo" data-vista="ventas">Ventas</button>
+    <button type="button" class="segmento" data-vista="entregas">Entregas</button>
+  </div>
+
+  <div id="vista-ventas">
   <div class="contenido-scroll">
 
     <div class="bloque">
@@ -97,6 +103,43 @@
     <button id="boton-confirmar" class="boton-primario" disabled>Registrar venta</button>
     <p id="error-venta" class="mensaje-error"></p>
   </footer>
+  </div>
+
+  <div id="vista-entregas" class="oculto">
+    <div class="contenido-scroll">
+      <ul id="lista-reservas" class="lista-reservas"></ul>
+      <p id="reservas-vacio" class="texto-vacio oculto">No hay entregas pendientes.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Detalle de una entrega/reserva -->
+<section id="pantalla-detalle-reserva" class="pantalla oculto">
+  <header class="barra-superior">
+    <button id="boton-volver-reserva" class="boton-texto">&larr; Volver</button>
+    <strong>Reserva #<span id="detalle-reserva-id"></span></strong>
+  </header>
+  <div class="contenido-scroll">
+    <div class="bloque">
+      <h2 id="detalle-reserva-cliente"></h2>
+      <p class="item-detalle" id="detalle-reserva-direccion"></p>
+      <p class="item-detalle" id="detalle-reserva-numero"></p>
+      <p class="item-detalle" id="detalle-reserva-hora"></p>
+    </div>
+    <div class="bloque">
+      <h2>Productos</h2>
+      <ul id="detalle-reserva-lineas" class="lista-carrito"></ul>
+    </div>
+  </div>
+  <footer class="barra-inferior">
+    <div class="fila-total">
+      <span>Total</span>
+      <strong id="detalle-reserva-total">S/ 0.00</strong>
+    </div>
+    <button id="boton-marcar-entregada" class="boton-primario">Marcar como entregada</button>
+    <button id="boton-cancelar-reserva" class="boton-texto boton-peligro">Cancelar reserva</button>
+    <p id="error-detalle-reserva" class="mensaje-error"></p>
+  </footer>
 </section>
 
 <!-- Confirmacion de venta -->
@@ -108,6 +151,20 @@
     <button id="boton-nueva-venta" class="boton-primario">Nueva venta</button>
   </div>
 </section>
+
+<!-- Modal: hora de entrega pactada -->
+<div id="modal-hora-entrega" class="modal-fondo oculto">
+  <div class="modal-tarjeta">
+    <h2>Hora de entrega pactada</h2>
+    <label for="hora-entrega-input">Fecha y hora</label>
+    <input id="hora-entrega-input" type="datetime-local" class="campo-buscar">
+    <p id="error-hora-entrega" class="mensaje-error"></p>
+    <div class="modal-botones">
+      <button id="boton-cancelar-hora-entrega" type="button" class="boton-texto">Cancelar</button>
+      <button id="boton-confirmar-hora-entrega" type="button" class="boton-primario">Confirmar venta</button>
+    </div>
+  </div>
+</div>
 
 <script src="/app.js"></script>
 </body>

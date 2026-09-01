@@ -209,8 +209,8 @@ public class DashboardDAO {
     public VentaTicket obtenerVentaTicket(long idVenta) throws SQLException {
         String ventaSql = "SELECT v.id_venta, "
                 + "COALESCE(v.documento_comprobante, '') AS documento_comprobante, "
-                + "v.fecha_venta, v.total, v.estado, c.id_cliente, c.nombre_completo, c.numero, "
-                + "c.direccion, c.id_distrito, COALESCE(d.nombre, 'Otro') AS distrito "
+                + "v.fecha_venta, v.hora_entrega_pactada, v.total, v.estado, c.id_cliente, c.nombre_completo, "
+                + "c.numero, c.direccion, c.id_distrito, COALESCE(d.nombre, 'Otro') AS distrito "
                 + "FROM venta v INNER JOIN cliente c ON c.id_cliente = v.id_cliente "
                 + "LEFT JOIN distritos d ON d.id_distrito = c.id_distrito "
                 + "WHERE v.id_venta = ?";
@@ -223,6 +223,7 @@ public class DashboardDAO {
             Cliente cliente;
             String documento;
             LocalDateTime fecha;
+            LocalDateTime horaEntregaPactada;
             BigDecimal total;
             String estado;
 
@@ -242,6 +243,8 @@ public class DashboardDAO {
                     documento = rs.getString("documento_comprobante");
                     Timestamp timestamp = rs.getTimestamp("fecha_venta");
                     fecha = timestamp == null ? LocalDateTime.now() : timestamp.toLocalDateTime();
+                    Timestamp horaEntregaTimestamp = rs.getTimestamp("hora_entrega_pactada");
+                    horaEntregaPactada = horaEntregaTimestamp == null ? null : horaEntregaTimestamp.toLocalDateTime();
                     total = rs.getBigDecimal("total");
                     estado = VentaEstado.normalizar(rs.getString("estado"));
                 }
@@ -264,7 +267,7 @@ public class DashboardDAO {
             if (lineas.isEmpty()) {
                 throw new SQLException("La venta seleccionada no tiene detalle para exportar.");
             }
-            return new VentaTicket(idVenta, cliente, documento, fecha, total, lineas, estado);
+            return new VentaTicket(idVenta, cliente, documento, fecha, total, lineas, estado, horaEntregaPactada);
         }
     }
 

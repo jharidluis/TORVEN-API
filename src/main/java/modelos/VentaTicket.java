@@ -14,14 +14,21 @@ public class VentaTicket {
     private final BigDecimal total;
     private final List<LineaVenta> lineas;
     private final String estado;
+    private final LocalDateTime horaEntregaPactada;
 
     public VentaTicket(long idVenta, Cliente cliente, String documentoComprobante,
             LocalDateTime fecha, BigDecimal total, List<LineaVenta> lineas) {
-        this(idVenta, cliente, documentoComprobante, fecha, total, lineas, VentaEstado.VENDIDA);
+        this(idVenta, cliente, documentoComprobante, fecha, total, lineas, VentaEstado.VENDIDA, null);
     }
 
     public VentaTicket(long idVenta, Cliente cliente, String documentoComprobante,
             LocalDateTime fecha, BigDecimal total, List<LineaVenta> lineas, String estado) {
+        this(idVenta, cliente, documentoComprobante, fecha, total, lineas, estado, null);
+    }
+
+    public VentaTicket(long idVenta, Cliente cliente, String documentoComprobante,
+            LocalDateTime fecha, BigDecimal total, List<LineaVenta> lineas, String estado,
+            LocalDateTime horaEntregaPactada) {
         this.idVenta = idVenta;
         this.cliente = cliente;
         this.documentoComprobante = documentoComprobante;
@@ -29,6 +36,7 @@ public class VentaTicket {
         this.total = total;
         this.lineas = Collections.unmodifiableList(new ArrayList<LineaVenta>(lineas));
         this.estado = VentaEstado.normalizar(estado);
+        this.horaEntregaPactada = horaEntregaPactada;
     }
 
     public long getIdVenta() {
@@ -57,5 +65,9 @@ public class VentaTicket {
 
     public String getEstado() {
         return estado;
+    }
+
+    public LocalDateTime getHoraEntregaPactada() {
+        return horaEntregaPactada;
     }
 }

@@ -15,6 +15,7 @@
   const pantallaLogin = el('pantalla-login');
   const pantallaVenta = el('pantalla-venta');
   const pantallaConfirmacion = el('pantalla-confirmacion');
+  const pantallaDetalleReserva = el('pantalla-detalle-reserva');
 
   // ---------- Arranque ----------
 
@@ -33,7 +34,7 @@
   // ---------- Navegacion entre pantallas ----------
 
   function mostrarPantalla(pantalla) {
-    [pantallaLogin, pantallaVenta, pantallaConfirmacion].forEach(function (p) {
+    [pantallaLogin, pantallaVenta, pantallaConfirmacion, pantallaDetalleReserva].forEach(function (p) {
       p.classList.toggle('oculto', p !== pantalla);
     });
   }
@@ -142,7 +143,145 @@
     el('cliente-modo-registrado').classList.remove('oculto');
     el('cliente-modo-nuevo').classList.add('oculto');
     actualizarCarritoUI();
+    mostrarVistaPrincipal('ventas');
     mostrarPantalla(pantallaLogin);
+  }
+
+  // ---------- Pestanas Ventas / Entregas ----------
+
+  const vistaVentas = el('vista-ventas');
+  const vistaEntregas = el('vista-entregas');
+
+  function mostrarVistaPrincipal(vista) {
+    document.querySelectorAll('#tabs-principales .segmento').forEach(function (boton) {
+      boton.classList.toggle('activo', boton.getAttribute('data-vista') === vista);
+    });
+    vistaVentas.classList.toggle('oculto', vista !== 'ventas');
+    vistaEntregas.classList.toggle('oculto', vista !== 'entregas');
+    if (vista === 'entregas') {
+      cargarReservas();
+    }
+  }
+
+  document.querySelectorAll('#tabs-principales .segmento').forEach(function (boton) {
+    boton.addEventListener('click', function () {
+      mostrarVistaPrincipal(boton.getAttribute('data-vista'));
+    });
+  });
+
+  // ---------- Entregas (reservas pendientes) ----------
+
+  const listaReservas = el('lista-reservas');
+  const reservasVacio = el('reservas-vacio');
+
+  function cargarReservas() {
+    apiFetch('/api/reservas').then(function (reservas) {
+      renderizarReservas(reservas);
+    }).catch(function (error) {
+      listaReservas.innerHTML = '';
+      reservasVacio.textContent = error.message || 'No se pudieron cargar las entregas.';
+      reservasVacio.classList.remove('oculto');
+    });
+  }
+
+  function renderizarReservas(reservas) {
+    listaReservas.innerHTML = '';
+    reservasVacio.textContent = 'No hay entregas pendientes.';
+    reservasVacio.classList.toggle('oculto', reservas.length > 0);
+
+    reservas.forEach(function (reserva) {
+      const li = document.createElement('li');
+      li.className = 'tarjeta-reserva';
+      li.innerHTML =
+        '<div class="tarjeta-reserva-info">' +
+        '  <div class="item-titulo">' + escapar(reserva.clienteNombre) + '</div>' +
+        '  <div class="item-detalle">' + escapar(reserva.clienteDistrito || '') + '</div>' +
+        '</div>' +
+        '<div class="tarjeta-reserva-hora">' + formatearFechaHora(reserva.horaEntregaPactada) + '</div>';
+      li.addEventListener('click', function () {
+        abrirDetalleReserva(reserva.idVenta);
+      });
+      listaReservas.appendChild(li);
+    });
+  }
+
+  let idReservaAbierta = null;
+
+  function abrirDetalleReserva(idVenta) {
+    el('error-detalle-reserva').textContent = '';
+    apiFetch('/api/reservas/' + idVenta).then(function (ticket) {
+      idReservaAbierta = ticket.idVenta;
+      el('detalle-reserva-id').textContent = ticket.idVenta;
+      el('detalle-reserva-cliente').textContent = ticket.cliente.nombre;
+      el('detalle-reserva-direccion').textContent = 'Direccion: ' +
+        (ticket.cliente.direccion || 'Sin direccion') +
+        (ticket.cliente.distrito ? ' - ' + ticket.cliente.distrito : '');
+      el('detalle-reserva-numero').textContent = 'Telefono: ' + (ticket.cliente.numero || 'Sin telefono');
+      el('detalle-reserva-hora').textContent = 'Hora de entrega pactada: ' +
+        formatearFechaHora(ticket.horaEntregaPactada);
+
+      const lista = el('detalle-reserva-lineas');
+      lista.innerHTML = '';
+      ticket.lineas.forEach(function (linea) {
+        const li = document.createElement('li');
+        const subtotal = Number(linea.precio) * linea.cantidad;
+        li.innerHTML =
+          '<div class="carrito-info">' +
+          '  <div class="item-titulo">' + escapar(linea.nombreProducto) + '</div>' +
+          '  <div class="item-detalle">S/ ' + Number(linea.precio).toFixed(2) + ' c/u &middot; x' + linea.cantidad + '</div>' +
+          '</div>' +
+          '<div>S/ ' + subtotal.toFixed(2) + '</div>';
+        lista.appendChild(li);
+      });
+
+      el('detalle-reserva-total').textContent = 'S/ ' + Number(ticket.total).toFixed(2);
+      mostrarPantalla(pantallaDetalleReserva);
+    }).catch(function (error) {
+      el('error-detalle-reserva').textContent = error.message || 'No se pudo abrir la reserva.';
+    });
+  }
+
+  el('boton-volver-reserva').addEventListener('click', function () {
+    mostrarPantalla(pantallaVenta);
+  });
+
+  function cambiarEstadoReservaAbierta(estadoNuevo) {
+    if (!idReservaAbierta) {
+      return;
+    }
+    el('error-detalle-reserva').textContent = '';
+    apiFetch('/api/reservas/' + idReservaAbierta + '/estado', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ estado: estadoNuevo })
+    }).then(function () {
+      idReservaAbierta = null;
+      mostrarPantalla(pantallaVenta);
+      cargarReservas();
+    }).catch(function (error) {
+      el('error-detalle-reserva').textContent = error.message || 'No se pudo actualizar la reserva.';
+    });
+  }
+
+  el('boton-marcar-entregada').addEventListener('click', function () {
+    cambiarEstadoReservaAbierta('VENDIDA');
+  });
+
+  el('boton-cancelar-reserva').addEventListener('click', function () {
+    cambiarEstadoReservaAbierta('CANCELADA');
+  });
+
+  function formatearFechaHora(valor) {
+    if (!valor) {
+      return 'Sin definir';
+    }
+    const fecha = new Date(valor);
+    if (isNaN(fecha.getTime())) {
+      return 'Sin definir';
+    }
+    return fecha.toLocaleString('es-PE', {
+      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+    });
   }
 
   // ---------- Busqueda de clientes ----------
@@ -271,6 +410,8 @@
       if (!agotado) {
         li.addEventListener('click', function () {
           agregarAlCarrito(producto);
+          el('buscar-producto').value = '';
+          listaProductos.innerHTML = '';
         });
       }
       listaProductos.appendChild(li);
@@ -379,14 +520,43 @@
     });
   }
 
+  const modalHoraEntrega = el('modal-hora-entrega');
+  const horaEntregaInput = el('hora-entrega-input');
+
+  function formatoDatetimeLocal(fecha) {
+    const pad = function (n) { return String(n).padStart(2, '0'); };
+    return fecha.getFullYear() + '-' + pad(fecha.getMonth() + 1) + '-' + pad(fecha.getDate()) +
+        'T' + pad(fecha.getHours()) + ':' + pad(fecha.getMinutes());
+  }
+
   el('boton-confirmar').addEventListener('click', function () {
-    const boton = el('boton-confirmar');
+    el('error-hora-entrega').textContent = '';
+    el('boton-confirmar-hora-entrega').disabled = false;
+    const ahora = formatoDatetimeLocal(new Date());
+    horaEntregaInput.min = ahora;
+    horaEntregaInput.value = ahora;
+    modalHoraEntrega.classList.remove('oculto');
+  });
+
+  el('boton-cancelar-hora-entrega').addEventListener('click', function () {
+    modalHoraEntrega.classList.add('oculto');
+  });
+
+  el('boton-confirmar-hora-entrega').addEventListener('click', function () {
+    const horaEntregaPactada = horaEntregaInput.value;
+    if (!horaEntregaPactada) {
+      el('error-hora-entrega').textContent = 'Ingresa la hora de entrega pactada.';
+      return;
+    }
+
+    const boton = el('boton-confirmar-hora-entrega');
     boton.disabled = true;
-    el('error-venta').textContent = '';
+    el('error-hora-entrega').textContent = '';
 
     obtenerIdCliente().then(function (idCliente) {
       const cuerpo = {
         idCliente: idCliente,
+        horaEntregaPactada: horaEntregaPactada,
         lineas: estado.carrito.map(function (l) {
           return { idProducto: l.idProducto, cantidad: l.cantidad };
         })
@@ -397,6 +567,7 @@
         body: JSON.stringify(cuerpo)
       });
     }).then(function (ticket) {
+      modalHoraEntrega.classList.add('oculto');
       el('detalle-confirmacion').textContent =
         'Venta #' + ticket.idVenta + ' - Total S/ ' + Number(ticket.total).toFixed(2);
       estado.cliente = null;
@@ -406,8 +577,8 @@
       actualizarCarritoUI();
       mostrarPantalla(pantallaConfirmacion);
     }).catch(function (error) {
-      mostrarErrorVenta(error);
-      actualizarBotonConfirmar();
+      el('error-hora-entrega').textContent = error.message || 'Ocurrio un error.';
+      boton.disabled = false;
     });
   });
 

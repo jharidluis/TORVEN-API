@@ -23,6 +23,7 @@ html, body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: contain;
+  color-scheme: dark;
 }
 
 .pantalla {
@@ -363,4 +364,101 @@ input:focus {
 select.campo-buscar {
   appearance: none;
   -webkit-appearance: none;
+}
+
+.tabs-principales {
+  margin: 16px 16px 0;
+}
+
+#vista-ventas, #vista-entregas {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* --- Entregas --- */
+.lista-reservas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tarjeta-reserva {
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.tarjeta-reserva:active {
+  background: var(--superficie-clara);
+}
+
+.tarjeta-reserva-info {
+  min-width: 0;
+}
+
+.tarjeta-reserva-info .item-titulo {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tarjeta-reserva-hora {
+  text-align: right;
+  font-weight: 600;
+  color: var(--primario);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.boton-peligro {
+  color: var(--peligro);
+}
+
+/* --- Modal --- */
+.modal-fondo {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 20;
+}
+
+.modal-tarjeta {
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: 16px;
+  padding: 22px;
+  width: 100%;
+  max-width: 360px;
+}
+
+.modal-tarjeta h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.modal-botones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.modal-botones .boton-primario {
+  margin-top: 0;
+  flex: 1;
 }

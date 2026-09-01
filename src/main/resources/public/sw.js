@@ -1,7 +1,7 @@
 // Sube este numero en cada deploy que toque index.html/app.js/styles.css:
 // el navegador solo reinstala el service worker (y refresca el cache) si este
 // archivo cambia de contenido, aunque los otros archivos si hayan cambiado.
-const CACHE_NAME = 'torven-shell-v3';
+const CACHE_NAME = 'torven-shell-v4';
 const ARCHIVOS_SHELL = [
   '/',
   '/index.html',

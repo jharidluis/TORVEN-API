@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import configuracion.AuditoriaContext;
 import dao.ClienteDAO;
+import dao.DashboardDAO;
 import dao.ProductoDAO;
 import dao.UsuarioDAO;
 import dao.VentaDAO;
@@ -18,6 +19,8 @@ import io.javalin.http.staticfiles.Location;
 import io.javalin.plugin.json.JavalinJackson;
 import java.math.BigDecimal;
 import java.sql.SQLException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -26,6 +29,7 @@ import modelos.Cliente;
 import modelos.Distrito;
 import modelos.LineaVenta;
 import modelos.Usuario;
+import modelos.VentaEstado;
 import modelos.VentaTicket;
 
 /**
@@ -42,6 +46,7 @@ public final class ApiMain {
     private static final ClienteDAO clienteDAO = new ClienteDAO();
     private static final ProductoDAO productoDAO = new ProductoDAO();
     private static final VentaDAO ventaDAO = new VentaDAO();
+    private static final DashboardDAO dashboardDAO = new DashboardDAO();
     private static final TokenStore tokens = new TokenStore();
     private static final LoginThrottle loginThrottle = new LoginThrottle();
 
@@ -70,6 +75,9 @@ public final class ApiMain {
         app.post("/api/clientes", ApiMain::crearCliente);
         app.get("/api/distritos", ApiMain::listarDistritos);
         app.post("/api/ventas", ApiMain::registrarVenta);
+        app.get("/api/reservas", ApiMain::listarReservas);
+        app.get("/api/reservas/{id}", ApiMain::obtenerReserva);
+        app.post("/api/reservas/{id}/estado", ApiMain::actualizarEstadoReserva);
 
         app.exception(HttpResponseException.class, (ex, ctx) -> {
             ctx.status(ex.getStatus()).json(mapaError(ex.getMessage()));
@@ -199,6 +207,15 @@ public final class ApiMain {
         if (cuerpo.lineas == null || cuerpo.lineas.isEmpty()) {
             throw new BadRequestResponse("Agrega al menos un producto al carrito.");
         }
+        if (cuerpo.horaEntregaPactada == null || cuerpo.horaEntregaPactada.trim().isEmpty()) {
+            throw new BadRequestResponse("Ingresa la hora de entrega pactada.");
+        }
+        LocalDateTime horaEntregaPactada;
+        try {
+            horaEntregaPactada = LocalDateTime.parse(cuerpo.horaEntregaPactada.trim());
+        } catch (DateTimeParseException ex) {
+            throw new BadRequestResponse("La hora de entrega pactada no es valida.");
+        }
 
         List<LineaVenta> carrito = new ArrayList<LineaVenta>();
         for (VentaRequest.LineaRequest linea : cuerpo.lineas) {
@@ -209,10 +226,47 @@ public final class ApiMain {
 
         AuditoriaContext.establecer(usuario);
         try {
-            VentaTicket ticket = ventaDAO.registrarVenta(cuerpo.idCliente, carrito);
+            VentaTicket ticket = ventaDAO.registrarReserva(cuerpo.idCliente, carrito, horaEntregaPactada);
             ctx.json(ticket);
         } finally {
             AuditoriaContext.limpiar();
+        }
+    }
+
+    private static void listarReservas(Context ctx) throws SQLException {
+        autenticado(ctx);
+        ctx.json(ventaDAO.listarReservasWeb());
+    }
+
+    private static void obtenerReserva(Context ctx) throws SQLException {
+        autenticado(ctx);
+        long idVenta = idDesdePath(ctx);
+        ctx.json(dashboardDAO.obtenerVentaTicket(idVenta));
+    }
+
+    private static void actualizarEstadoReserva(Context ctx) throws SQLException {
+        Usuario usuario = autenticado(ctx);
+        long idVenta = idDesdePath(ctx);
+        EstadoRequest cuerpo = ctx.bodyAsClass(EstadoRequest.class);
+        String estado = VentaEstado.normalizar(cuerpo.estado);
+        if (!VentaEstado.VENDIDA.equals(estado) && !VentaEstado.CANCELADA.equals(estado)) {
+            throw new BadRequestResponse("El estado debe ser VENDIDA o CANCELADA.");
+        }
+
+        AuditoriaContext.establecer(usuario);
+        try {
+            ventaDAO.cambiarEstadoReserva(idVenta, estado);
+            ctx.json(dashboardDAO.obtenerVentaTicket(idVenta));
+        } finally {
+            AuditoriaContext.limpiar();
+        }
+    }
+
+    private static long idDesdePath(Context ctx) {
+        try {
+            return Long.parseLong(ctx.pathParam("id"));
+        } catch (NumberFormatException ex) {
+            throw new BadRequestResponse("Numero de venta invalido.");
         }
     }
 
