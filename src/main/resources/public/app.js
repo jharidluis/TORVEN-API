@@ -43,7 +43,28 @@
     el('rol-usuario').textContent = estado.usuario.rol || '';
     mostrarPantalla(pantallaVenta);
     cargarDistritosSiHaceFalta();
+    reiniciarTemporizadorInactividad();
   }
+
+  // ---------- Cierre de sesion por inactividad ----------
+
+  const INACTIVIDAD_LIMITE_MS = 15 * 60 * 1000;
+  let temporizadorInactividad = null;
+
+  function reiniciarTemporizadorInactividad() {
+    clearTimeout(temporizadorInactividad);
+    if (!estado.token) {
+      return;
+    }
+    temporizadorInactividad = setTimeout(function () {
+      cerrarSesion();
+      el('error-login').textContent = 'Se cerro la sesion por inactividad.';
+    }, INACTIVIDAD_LIMITE_MS);
+  }
+
+  ['click', 'touchstart', 'keydown', 'input'].forEach(function (tipoEvento) {
+    document.addEventListener(tipoEvento, reiniciarTemporizadorInactividad, { passive: true });
+  });
 
   // ---------- Llamadas a la API ----------
 
@@ -101,6 +122,7 @@
   el('boton-salir').addEventListener('click', cerrarSesion);
 
   function cerrarSesion() {
+    clearTimeout(temporizadorInactividad);
     if (estado.token) {
       fetch('/api/logout', {
         method: 'POST',
