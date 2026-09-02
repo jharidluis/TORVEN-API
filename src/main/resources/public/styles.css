@@ -423,6 +423,31 @@ select.campo-buscar {
   z-index: 8;
 }
 
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(90px + env(safe-area-inset-bottom));
+  transform: translate(-50%, 10px);
+  background: var(--superficie-clara);
+  color: var(--texto);
+  border: 1px solid var(--borde);
+  padding: 13px 20px;
+  border-radius: 12px;
+  font-size: 14px;
+  text-align: center;
+  max-width: calc(100% - 48px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  z-index: 15;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.toast.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .boton-fab:active {
   background: var(--primario-oscuro);
 }

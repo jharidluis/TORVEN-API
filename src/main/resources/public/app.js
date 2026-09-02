@@ -295,7 +295,7 @@
     });
 
     if (entregasHoy.length === 0) {
-      alert('No hay entregas pactadas para hoy.');
+      mostrarAviso('No hay entregas pactadas para hoy.');
       return;
     }
 
@@ -578,5 +578,22 @@
     const div = document.createElement('div');
     div.textContent = texto == null ? '' : String(texto);
     return div.innerHTML;
+  }
+
+  let toastAviso = null;
+  let temporizadorAviso = null;
+
+  function mostrarAviso(mensaje) {
+    if (!toastAviso) {
+      toastAviso = document.createElement('div');
+      toastAviso.className = 'toast';
+      document.body.appendChild(toastAviso);
+    }
+    toastAviso.textContent = mensaje;
+    toastAviso.classList.add('visible');
+    clearTimeout(temporizadorAviso);
+    temporizadorAviso = setTimeout(function () {
+      toastAviso.classList.remove('visible');
+    }, 2600);
   }
 })();
