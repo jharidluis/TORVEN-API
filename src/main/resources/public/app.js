@@ -179,6 +179,7 @@
 
   const listaReservas = el('lista-reservas');
   const reservasVacio = el('reservas-vacio');
+  let reservasActuales = [];
 
   function cargarReservas() {
     apiFetch('/api/reservas').then(function (reservas) {
@@ -191,13 +192,15 @@
   }
 
   function renderizarReservas(reservas) {
+    reservasActuales = reservas;
     listaReservas.innerHTML = '';
     reservasVacio.textContent = 'No hay entregas pendientes.';
     reservasVacio.classList.toggle('oculto', reservas.length > 0);
 
     reservas.forEach(function (reserva) {
+      const atrasada = reserva.horaEntregaPactada && new Date(reserva.horaEntregaPactada) < new Date();
       const li = document.createElement('li');
-      li.className = 'tarjeta-reserva';
+      li.className = 'tarjeta-reserva' + (atrasada ? ' tarjeta-reserva-atrasada' : '');
       li.innerHTML =
         '<div class="tarjeta-reserva-info">' +
         '  <div class="item-titulo">' + escapar(reserva.direccion) + '</div>' +
@@ -274,6 +277,40 @@
   el('boton-cancelar-reserva').addEventListener('click', function () {
     cambiarEstadoReservaAbierta('CANCELADA');
   });
+
+  el('boton-mapa-entregas').addEventListener('click', function () {
+    abrirMapaEntregasHoy();
+  });
+
+  function abrirMapaEntregasHoy() {
+    const hoy = new Date();
+    const entregasHoy = reservasActuales.filter(function (reserva) {
+      if (!reserva.horaEntregaPactada) {
+        return false;
+      }
+      const fecha = new Date(reserva.horaEntregaPactada);
+      return fecha.getFullYear() === hoy.getFullYear()
+          && fecha.getMonth() === hoy.getMonth()
+          && fecha.getDate() === hoy.getDate();
+    });
+
+    if (entregasHoy.length === 0) {
+      alert('No hay entregas pactadas para hoy.');
+      return;
+    }
+
+    const direcciones = entregasHoy.map(function (reserva) {
+      return (reserva.direccion || '') + (reserva.distrito ? ', ' + reserva.distrito : '') + ', Lima, Peru';
+    });
+
+    const destino = encodeURIComponent(direcciones[direcciones.length - 1]);
+    const paradas = direcciones.slice(0, -1).map(encodeURIComponent).join('|');
+    let url = 'https://www.google.com/maps/dir/?api=1&destination=' + destino + '&travelmode=driving';
+    if (paradas) {
+      url += '&waypoints=' + paradas;
+    }
+    window.open(url, '_blank');
+  }
 
   function formatearFechaHora(valor) {
     if (!valor) {
