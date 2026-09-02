@@ -4,8 +4,6 @@
   const estado = {
     token: localStorage.getItem('torven_token'),
     usuario: JSON.parse(localStorage.getItem('torven_usuario') || 'null'),
-    clienteModo: 'registrado', // 'registrado' o 'nuevo'
-    cliente: null,
     distritos: [],
     carrito: [] // { idProducto, nombre, precio, stock, cantidad }
   };
@@ -146,16 +144,10 @@
     }
     estado.token = null;
     estado.usuario = null;
-    estado.cliente = null;
-    estado.clienteModo = 'registrado';
     estado.carrito = [];
     localStorage.removeItem('torven_token');
     localStorage.removeItem('torven_usuario');
-    document.querySelectorAll('#cliente-tipo .segmento').forEach(function (b) {
-      b.classList.toggle('activo', b.getAttribute('data-tipo') === 'registrado');
-    });
-    el('cliente-modo-registrado').classList.remove('oculto');
-    el('cliente-modo-nuevo').classList.add('oculto');
+    limpiarFormularioEntrega();
     actualizarCarritoUI();
     mostrarVistaPrincipal('ventas');
     mostrarPantalla(pantallaLogin);
@@ -208,8 +200,8 @@
       li.className = 'tarjeta-reserva';
       li.innerHTML =
         '<div class="tarjeta-reserva-info">' +
-        '  <div class="item-titulo">' + escapar(reserva.clienteNombre) + '</div>' +
-        '  <div class="item-detalle">' + escapar(reserva.clienteDistrito || '') + '</div>' +
+        '  <div class="item-titulo">' + escapar(reserva.direccion) + '</div>' +
+        '  <div class="item-detalle">' + escapar(reserva.distrito || '') + '</div>' +
         '</div>' +
         '<div class="tarjeta-reserva-hora">' + formatearFechaHora(reserva.horaEntregaPactada) + '</div>';
       li.addEventListener('click', function () {
@@ -226,11 +218,9 @@
     apiFetch('/api/reservas/' + idVenta).then(function (ticket) {
       idReservaAbierta = ticket.idVenta;
       el('detalle-reserva-id').textContent = ticket.idVenta;
-      el('detalle-reserva-cliente').textContent = ticket.cliente.nombre;
-      el('detalle-reserva-direccion').textContent = 'Direccion: ' +
-        (ticket.cliente.direccion || 'Sin direccion') +
-        (ticket.cliente.distrito ? ' - ' + ticket.cliente.distrito : '');
-      el('detalle-reserva-numero').textContent = 'Telefono: ' + (ticket.cliente.numero || 'Sin telefono');
+      el('detalle-reserva-direccion').textContent = ticket.lugarEntrega.direccion || 'Sin direccion';
+      el('detalle-reserva-distrito').textContent = 'Distrito: ' + (ticket.lugarEntrega.distrito || 'Sin distrito');
+      el('detalle-reserva-numero').textContent = 'Telefono: ' + (ticket.lugarEntrega.numero || 'Sin telefono');
       el('detalle-reserva-hora').textContent = 'Hora de entrega pactada: ' +
         formatearFechaHora(ticket.horaEntregaPactada);
 
@@ -298,66 +288,9 @@
     });
   }
 
-  // ---------- Busqueda de clientes ----------
+  // ---------- Entrega ----------
 
-  const listaClientes = el('lista-clientes');
-  const chipCliente = el('cliente-seleccionado');
-
-  el('buscar-cliente').addEventListener('input', debounce(function (evento) {
-    const texto = evento.target.value.trim();
-    if (texto.length === 0) {
-      listaClientes.innerHTML = '';
-      return;
-    }
-    apiFetch('/api/clientes?buscar=' + encodeURIComponent(texto)).then(function (clientes) {
-      renderizarClientes(clientes);
-    }).catch(mostrarErrorVenta);
-  }, 300));
-
-  function renderizarClientes(clientes) {
-    listaClientes.innerHTML = '';
-    clientes.slice(0, 15).forEach(function (cliente) {
-      const li = document.createElement('li');
-      li.innerHTML =
-        '<div class="item-titulo">' + escapar(cliente.nombre) + '</div>' +
-        '<div class="item-detalle">' + escapar(cliente.numero || '') +
-        (cliente.distrito ? ' - ' + escapar(cliente.distrito) : '') + '</div>';
-      li.addEventListener('click', function () {
-        estado.cliente = cliente;
-        el('cliente-nombre-chip').textContent = cliente.nombre;
-        chipCliente.classList.remove('oculto');
-        el('buscar-cliente').value = '';
-        listaClientes.innerHTML = '';
-        actualizarBotonConfirmar();
-      });
-      listaClientes.appendChild(li);
-    });
-  }
-
-  el('quitar-cliente').addEventListener('click', function () {
-    estado.cliente = null;
-    chipCliente.classList.add('oculto');
-    actualizarBotonConfirmar();
-  });
-
-  // ---------- Tipo de cliente: registrado o nuevo ----------
-
-  const modoRegistrado = el('cliente-modo-registrado');
-  const modoNuevo = el('cliente-modo-nuevo');
-  const selectDistrito = el('nuevo-cliente-distrito');
-
-  document.querySelectorAll('#cliente-tipo .segmento').forEach(function (boton) {
-    boton.addEventListener('click', function () {
-      document.querySelectorAll('#cliente-tipo .segmento').forEach(function (b) {
-        b.classList.remove('activo');
-      });
-      boton.classList.add('activo');
-      estado.clienteModo = boton.getAttribute('data-tipo');
-      modoRegistrado.classList.toggle('oculto', estado.clienteModo !== 'registrado');
-      modoNuevo.classList.toggle('oculto', estado.clienteModo !== 'nuevo');
-      actualizarBotonConfirmar();
-    });
-  });
+  const selectDistrito = el('entrega-distrito');
 
   let distritosCargados = false;
 
@@ -383,19 +316,16 @@
     });
   }
 
-  ['nuevo-cliente-nombre', 'nuevo-cliente-direccion'].forEach(function (id) {
-    el(id).addEventListener('input', actualizarBotonConfirmar);
-  });
+  el('entrega-direccion').addEventListener('input', actualizarBotonConfirmar);
 
-  function datosClienteNuevoCompletos() {
-    return el('nuevo-cliente-nombre').value.trim().length > 0
-        && el('nuevo-cliente-direccion').value.trim().length > 0;
+  function datosEntregaCompleta() {
+    return el('entrega-direccion').value.trim().length > 0
+        && selectDistrito.value.length > 0;
   }
 
-  function limpiarFormularioClienteNuevo() {
-    el('nuevo-cliente-nombre').value = '';
-    el('nuevo-cliente-telefono').value = '';
-    el('nuevo-cliente-direccion').value = '';
+  function limpiarFormularioEntrega() {
+    el('entrega-direccion').value = '';
+    el('entrega-numero').value = '';
   }
 
   // ---------- Busqueda de productos ----------
@@ -507,30 +437,23 @@
   }
 
   function actualizarBotonConfirmar() {
-    const hayCliente = estado.clienteModo === 'nuevo'
-        ? datosClienteNuevoCompletos()
-        : !!estado.cliente;
-    el('boton-confirmar').disabled = !hayCliente || estado.carrito.length === 0;
+    el('boton-confirmar').disabled = !datosEntregaCompleta() || estado.carrito.length === 0;
   }
 
   // ---------- Confirmar venta ----------
 
-  function obtenerIdCliente() {
-    if (estado.clienteModo === 'registrado') {
-      return Promise.resolve(estado.cliente.id);
-    }
+  function crearLugarEntrega() {
     const cuerpo = {
-      nombre: el('nuevo-cliente-nombre').value.trim(),
-      numero: el('nuevo-cliente-telefono').value.trim(),
-      direccion: el('nuevo-cliente-direccion').value.trim(),
+      numero: el('entrega-numero').value.trim(),
+      direccion: el('entrega-direccion').value.trim(),
       idDistrito: Number(selectDistrito.value) || 0
     };
-    return apiFetch('/api/clientes', {
+    return apiFetch('/api/lugares-entrega', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(cuerpo)
-    }).then(function (clienteCreado) {
-      return clienteCreado.id;
+    }).then(function (lugarEntregaCreado) {
+      return lugarEntregaCreado.id;
     });
   }
 
@@ -567,9 +490,9 @@
     boton.disabled = true;
     el('error-hora-entrega').textContent = '';
 
-    obtenerIdCliente().then(function (idCliente) {
+    crearLugarEntrega().then(function (idLugarEntrega) {
       const cuerpo = {
-        idCliente: idCliente,
+        idLugarEntrega: idLugarEntrega,
         horaEntregaPactada: horaEntregaPactada,
         lineas: estado.carrito.map(function (l) {
           return { idProducto: l.idProducto, cantidad: l.cantidad };
@@ -584,10 +507,8 @@
       modalHoraEntrega.classList.add('oculto');
       el('detalle-confirmacion').textContent =
         'Venta #' + ticket.idVenta + ' - Total S/ ' + Number(ticket.total).toFixed(2);
-      estado.cliente = null;
       estado.carrito = [];
-      chipCliente.classList.add('oculto');
-      limpiarFormularioClienteNuevo();
+      limpiarFormularioEntrega();
       actualizarCarritoUI();
       mostrarPantalla(pantallaConfirmacion);
     }).catch(function (error) {

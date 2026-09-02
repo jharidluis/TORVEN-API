@@ -3,7 +3,7 @@ package api;
 import java.util.List;
 
 public class VentaRequest {
-    public int idCliente;
+    public int idLugarEntrega;
     public List<LineaRequest> lineas;
     public String horaEntregaPactada;
 

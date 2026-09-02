@@ -52,32 +52,15 @@
   <div class="contenido-scroll">
 
     <div class="bloque">
-      <h2>Cliente</h2>
+      <h2>Entrega</h2>
 
-      <div id="cliente-tipo" class="segmentado">
-        <button type="button" class="segmento activo" data-tipo="registrado">Cliente registrado</button>
-        <button type="button" class="segmento" data-tipo="nuevo">Cliente nuevo</button>
-      </div>
-
-      <div id="cliente-modo-registrado">
-        <div id="cliente-seleccionado" class="chip-seleccionado oculto">
-          <span id="cliente-nombre-chip"></span>
-          <button id="quitar-cliente" class="boton-quitar" aria-label="Quitar cliente">&times;</button>
-        </div>
-        <input id="buscar-cliente" type="text" placeholder="Buscar cliente por nombre, telefono o distrito"
-               class="campo-buscar">
-        <ul id="lista-clientes" class="lista-resultados"></ul>
-      </div>
-
-      <div id="cliente-modo-nuevo" class="oculto">
-        <label for="nuevo-cliente-nombre">Nombre completo</label>
-        <input id="nuevo-cliente-nombre" type="text" class="campo-buscar" placeholder="Nombre y apellido">
-        <label for="nuevo-cliente-telefono">Telefono (opcional)</label>
-        <input id="nuevo-cliente-telefono" type="tel" class="campo-buscar" placeholder="Opcional">
-        <label for="nuevo-cliente-direccion">Direccion</label>
-        <input id="nuevo-cliente-direccion" type="text" class="campo-buscar" placeholder="Direccion">
-        <label for="nuevo-cliente-distrito">Distrito</label>
-        <select id="nuevo-cliente-distrito" class="campo-buscar"></select>
+      <div id="entrega-campos">
+        <label for="entrega-direccion">Direccion</label>
+        <input id="entrega-direccion" type="text" class="campo-buscar" placeholder="Direccion">
+        <label for="entrega-distrito">Distrito</label>
+        <select id="entrega-distrito" class="campo-buscar"></select>
+        <label for="entrega-numero">Telefono (opcional)</label>
+        <input id="entrega-numero" type="tel" class="campo-buscar" placeholder="Opcional">
       </div>
     </div>
 
@@ -121,8 +104,8 @@
   </header>
   <div class="contenido-scroll">
     <div class="bloque">
-      <h2 id="detalle-reserva-cliente"></h2>
-      <p class="item-detalle" id="detalle-reserva-direccion"></p>
+      <h2 id="detalle-reserva-direccion"></h2>
+      <p class="item-detalle" id="detalle-reserva-distrito"></p>
       <p class="item-detalle" id="detalle-reserva-numero"></p>
       <p class="item-detalle" id="detalle-reserva-hora"></p>
     </div>

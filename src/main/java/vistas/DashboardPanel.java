@@ -50,11 +50,11 @@ public class DashboardPanel extends JPanel {
     private final JLabel lblVentasHoy = tarjetaValor("S/. 0.00");
     private final JLabel lblVentasSemana = tarjetaValor("S/. 0.00");
     private final JLabel lblVentasMes = tarjetaValor("S/. 0.00");
-    private final JLabel lblClientes = tarjetaValor("0");
+    private final JLabel lblLugaresEntrega = tarjetaValor("0");
     private final JLabel lblProductos = tarjetaValor("0");
     private final JLabel lblStockBajo = tarjetaValor("0");
     private final DistritosBarChart graficaDistritos = new DistritosBarChart();
-    private final DefaultTableModel modelo = Ui.modelo("Venta", "Fecha", "Cliente", "DNI/RUC", "Total", "Estado", "EstadoCodigo");
+    private final DefaultTableModel modelo = Ui.modelo("Venta", "Fecha", "Direccion", "DNI/RUC", "Total", "Estado", "EstadoCodigo");
     private final JTable tabla = new JTable(modelo);
     private final FechaSelector fechaDesde = new FechaSelector("Desde");
     private final FechaSelector fechaHasta = new FechaSelector("Hasta");
@@ -72,12 +72,6 @@ public class DashboardPanel extends JPanel {
         setBackground(Ui.COLOR_FONDO);
         construir();
         configurarFechasIniciales();
-        DatosEventBus.alCambiarClientes(new Runnable() {
-            @Override
-            public void run() {
-                cargar();
-            }
-        });
         DatosEventBus.alCambiarProductos(new Runnable() {
             @Override
             public void run() {
@@ -166,7 +160,7 @@ public class DashboardPanel extends JPanel {
         tarjetas.add(tarjeta("Ventas de hoy", lblVentasHoy, Ui.COLOR_PRINCIPAL));
         tarjetas.add(tarjeta("Ventas semanales", lblVentasSemana, Ui.COLOR_ACCENTO));
         tarjetas.add(tarjeta("Ventas mensuales", lblVentasMes, Ui.COLOR_MORADO));
-        tarjetas.add(tarjeta("Clientes", lblClientes, Ui.COLOR_VERDE));
+        tarjetas.add(tarjeta("Direcciones", lblLugaresEntrega, Ui.COLOR_VERDE));
         tarjetas.add(tarjeta("Productos", lblProductos, Ui.COLOR_PRINCIPAL));
         tarjetas.add(tarjeta("Stock bajo", lblStockBajo, Ui.COLOR_ALERTA));
 
@@ -262,7 +256,7 @@ public class DashboardPanel extends JPanel {
         lblVentasHoy.setText("S/. " + Ui.dinero(datos.getVentasHoy()));
         lblVentasSemana.setText("S/. " + Ui.dinero(datos.getVentasSemana()));
         lblVentasMes.setText("S/. " + Ui.dinero(datos.getVentasMes()));
-        lblClientes.setText(String.valueOf(datos.getTotalClientes()));
+        lblLugaresEntrega.setText(String.valueOf(datos.getTotalLugaresEntrega()));
         lblProductos.setText(String.valueOf(datos.getTotalProductos()));
         lblStockBajo.setText(String.valueOf(datos.getStockBajo()));
         graficaDistritos.setDatos(datos.getDistritos());

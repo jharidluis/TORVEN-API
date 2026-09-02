@@ -14,29 +14,29 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import modelos.Cliente;
 import modelos.LineaVenta;
+import modelos.LugarEntrega;
 import modelos.Producto;
 import modelos.ReservaResumen;
 import modelos.VentaEstado;
 import modelos.VentaTicket;
 
 public class VentaDAO {
-    private final ClienteDAO clienteDAO = new ClienteDAO();
+    private final LugarEntregaDAO lugarEntregaDAO = new LugarEntregaDAO();
     private final ProductoDAO productoDAO = new ProductoDAO();
 
-    public VentaTicket registrarVenta(int idCliente, List<LineaVenta> carrito) throws SQLException {
-        return registrarReserva(idCliente, carrito, null);
+    public VentaTicket registrarVenta(int idLugarEntrega, List<LineaVenta> carrito) throws SQLException {
+        return registrarReserva(idLugarEntrega, carrito, null);
     }
 
-    public VentaTicket registrarReserva(int idCliente, List<LineaVenta> carrito) throws SQLException {
-        return registrarReserva(idCliente, carrito, null);
+    public VentaTicket registrarReserva(int idLugarEntrega, List<LineaVenta> carrito) throws SQLException {
+        return registrarReserva(idLugarEntrega, carrito, null);
     }
 
-    public VentaTicket registrarReserva(int idCliente, List<LineaVenta> carrito, LocalDateTime horaEntregaPactada)
+    public VentaTicket registrarReserva(int idLugarEntrega, List<LineaVenta> carrito, LocalDateTime horaEntregaPactada)
             throws SQLException {
-        if (idCliente <= 0) {
-            throw new SQLException("Selecciona un cliente.");
+        if (idLugarEntrega <= 0) {
+            throw new SQLException("Falta el lugar de entrega.");
         }
         if (carrito == null || carrito.isEmpty()) {
             throw new SQLException("El carrito esta vacio.");
@@ -46,20 +46,20 @@ public class VentaDAO {
         try {
             conn.setAutoCommit(false);
 
-            Cliente cliente = clienteDAO.obtenerPorId(conn, idCliente);
-            if (cliente == null) {
-                throw new SQLException("El cliente seleccionado ya no existe.");
+            LugarEntrega lugarEntrega = lugarEntregaDAO.obtenerPorId(conn, idLugarEntrega);
+            if (lugarEntrega == null) {
+                throw new SQLException("El lugar de entrega seleccionado ya no existe.");
             }
             String documento = "";
 
             List<LineaVenta> lineasFinales = validarYCongelarPrecios(conn, carrito);
             BigDecimal total = total(lineasFinales);
-            long idVenta = insertarVenta(conn, idCliente, documento, total, VentaEstado.EN_PROCESO,
+            long idVenta = insertarVenta(conn, idLugarEntrega, documento, total, VentaEstado.EN_PROCESO,
                     horaEntregaPactada);
             insertarDetallesYDescontarStock(conn, idVenta, lineasFinales);
 
             conn.commit();
-            return new VentaTicket(idVenta, cliente, documento, LocalDateTime.now(), total,
+            return new VentaTicket(idVenta, lugarEntrega, documento, LocalDateTime.now(), total,
                     lineasFinales, VentaEstado.EN_PROCESO, horaEntregaPactada);
         } catch (Exception ex) {
             try {
@@ -148,9 +148,9 @@ public class VentaDAO {
 
     private List<Object[]> listarReservasSinProcedimiento() throws SQLException {
         List<Object[]> reservas = new ArrayList<Object[]>();
-        String sql = "SELECT v.id_venta, v.fecha_venta, c.nombre_completo, "
+        String sql = "SELECT v.id_venta, v.fecha_venta, le.direccion, "
                 + "COALESCE(v.documento_comprobante, '') AS dni_ruc, v.total "
-                + "FROM venta v INNER JOIN cliente c ON c.id_cliente = v.id_cliente "
+                + "FROM venta v INNER JOIN lugar_entrega le ON le.id_lugar_entrega = v.id_lugar_entrega "
                 + "WHERE v.estado = ? "
                 + "ORDER BY v.fecha_venta ASC";
         try (Connection conn = Conexion.abrir();
@@ -168,9 +168,9 @@ public class VentaDAO {
     public List<ReservaResumen> listarReservasWeb() throws SQLException {
         List<ReservaResumen> reservas = new ArrayList<ReservaResumen>();
         String sql = "SELECT v.id_venta, v.fecha_venta, v.hora_entrega_pactada, v.total, v.estado, "
-                + "c.nombre_completo, c.numero, c.direccion, COALESCE(d.nombre, 'Otro') AS distrito "
-                + "FROM venta v INNER JOIN cliente c ON c.id_cliente = v.id_cliente "
-                + "LEFT JOIN distritos d ON d.id_distrito = c.id_distrito "
+                + "le.numero, le.direccion, COALESCE(d.nombre, 'Otro') AS distrito "
+                + "FROM venta v INNER JOIN lugar_entrega le ON le.id_lugar_entrega = v.id_lugar_entrega "
+                + "LEFT JOIN distritos d ON d.id_distrito = le.id_distrito "
                 + "WHERE v.estado = ? "
                 + "ORDER BY v.hora_entrega_pactada ASC, v.fecha_venta ASC";
         try (Connection conn = Conexion.abrir();
@@ -184,7 +184,6 @@ public class VentaDAO {
                             rs.getLong("id_venta"),
                             fecha == null ? null : fecha.toLocalDateTime(),
                             horaEntrega == null ? null : horaEntrega.toLocalDateTime(),
-                            rs.getString("nombre_completo"),
                             rs.getString("numero"),
                             rs.getString("direccion"),
                             rs.getString("distrito"),
@@ -200,7 +199,7 @@ public class VentaDAO {
         return new Object[]{
             rs.getLong("id_venta"),
             rs.getTimestamp("fecha_venta"),
-            rs.getString("nombre_completo"),
+            rs.getString("direccion"),
             rs.getString("dni_ruc"),
             rs.getBigDecimal("total")
         };
@@ -230,16 +229,16 @@ public class VentaDAO {
         return lineas;
     }
 
-    private long insertarVenta(Connection conn, int idCliente, String documento, BigDecimal total, String estado,
+    private long insertarVenta(Connection conn, int idLugarEntrega, String documento, BigDecimal total, String estado,
             LocalDateTime horaEntregaPactada) throws SQLException {
         if (SqlIds.requiereIdManual(conn, "venta", "id_venta")) {
-            return insertarVentaConId(conn, idCliente, documento, total, estado, horaEntregaPactada);
+            return insertarVentaConId(conn, idLugarEntrega, documento, total, estado, horaEntregaPactada);
         }
 
-        String sql = "INSERT INTO venta(id_cliente, documento_comprobante, fecha_venta, total, estado, "
+        String sql = "INSERT INTO venta(id_lugar_entrega, documento_comprobante, fecha_venta, total, estado, "
                 + "hora_entrega_pactada) VALUES (?, ?, NOW(), ?, ?, ?)";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            ps.setInt(1, idCliente);
+            ps.setInt(1, idLugarEntrega);
             ps.setString(2, documento);
             ps.setBigDecimal(3, total);
             ps.setString(4, estado);
@@ -254,14 +253,14 @@ public class VentaDAO {
         throw new SQLException("No se genero el numero de venta.");
     }
 
-    private long insertarVentaConId(Connection conn, int idCliente, String documento, BigDecimal total, String estado,
+    private long insertarVentaConId(Connection conn, int idLugarEntrega, String documento, BigDecimal total, String estado,
             LocalDateTime horaEntregaPactada) throws SQLException {
         long idVenta = SqlIds.siguienteLong(conn, "venta", "id_venta");
-        String sql = "INSERT INTO venta(id_venta, id_cliente, documento_comprobante, fecha_venta, total, estado, "
+        String sql = "INSERT INTO venta(id_venta, id_lugar_entrega, documento_comprobante, fecha_venta, total, estado, "
                 + "hora_entrega_pactada) VALUES (?, ?, ?, NOW(), ?, ?, ?)";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, idVenta);
-            ps.setInt(2, idCliente);
+            ps.setInt(2, idLugarEntrega);
             ps.setString(3, documento);
             ps.setBigDecimal(4, total);
             ps.setString(5, estado);

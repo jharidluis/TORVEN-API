@@ -15,9 +15,9 @@ import java.time.LocalDateTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.List;
-import modelos.Cliente;
 import modelos.DashboardDatos;
 import modelos.LineaVenta;
+import modelos.LugarEntrega;
 import modelos.VentaEstado;
 import modelos.VentaTicket;
 
@@ -38,7 +38,7 @@ public class DashboardDAO {
             BigDecimal hoy;
             BigDecimal semana;
             BigDecimal mes;
-            int clientes;
+            int lugaresEntrega;
             int productos;
             int stockBajo;
             try (ResultSet rs = call.getResultSet()) {
@@ -48,7 +48,7 @@ public class DashboardDAO {
                 hoy = rs.getBigDecimal("ventas_hoy");
                 semana = rs.getBigDecimal("ventas_semana");
                 mes = rs.getBigDecimal("ventas_mes");
-                clientes = rs.getInt("total_clientes");
+                lugaresEntrega = rs.getInt("total_lugares_entrega");
                 productos = rs.getInt("total_productos");
                 stockBajo = rs.getInt("stock_bajo");
             }
@@ -68,7 +68,7 @@ public class DashboardDAO {
             try (ResultSet rs = call.getResultSet()) {
                 ventas = leerVentas(rs);
             }
-            return new DashboardDatos(hoy, semana, mes, clientes, productos, stockBajo, distritos, ventas);
+            return new DashboardDatos(hoy, semana, mes, lugaresEntrega, productos, stockBajo, distritos, ventas);
         } catch (SQLException ex) {
             if (ex.getErrorCode() != 1305) {
                 throw ex;
@@ -92,8 +92,8 @@ public class DashboardDAO {
         return ventasPorPeriodo(inicioMes, inicioMes.plusMonths(1));
     }
 
-    public int totalClientes() throws SQLException {
-        return entero("SELECT COUNT(*) FROM cliente WHERE activo = 1");
+    public int totalLugaresEntrega() throws SQLException {
+        return entero("SELECT COUNT(*) FROM lugar_entrega");
     }
 
     public int totalProductos() throws SQLException {
@@ -112,10 +112,10 @@ public class DashboardDAO {
         LocalDate fechaDesde = desde == null ? LocalDate.now() : desde;
         LocalDate fechaHasta = hasta == null ? fechaDesde : hasta;
         List<Object[]> ventas = new ArrayList<Object[]>();
-        String sql = "SELECT v.id_venta, v.fecha_venta, c.nombre_completo, "
+        String sql = "SELECT v.id_venta, v.fecha_venta, le.direccion, "
                 + "COALESCE(v.documento_comprobante, '') AS dni_ruc, "
                 + "v.total, v.estado "
-                + "FROM venta v INNER JOIN cliente c ON c.id_cliente = v.id_cliente "
+                + "FROM venta v INNER JOIN lugar_entrega le ON le.id_lugar_entrega = v.id_lugar_entrega "
                 + "WHERE v.fecha_venta >= ? AND v.fecha_venta < ? "
                 + (canceladas ? "AND v.estado = ? " : "AND v.estado IN ('VENDIDA', 'PAGADA') ")
                 + "ORDER BY v.fecha_venta DESC";
@@ -131,7 +131,7 @@ public class DashboardDAO {
                     ventas.add(new Object[]{
                         rs.getLong("id_venta"),
                         rs.getTimestamp("fecha_venta"),
-                        rs.getString("nombre_completo"),
+                        rs.getString("direccion"),
                         rs.getString("dni_ruc"),
                         rs.getBigDecimal("total"),
                         VentaEstado.normalizar(rs.getString("estado"))
@@ -147,8 +147,8 @@ public class DashboardDAO {
         String sql = "SELECT COALESCE(d.nombre, 'Otro') AS distrito, "
                 + "COALESCE(SUM(v.total), 0) AS total, COUNT(*) AS ventas "
                 + "FROM venta v "
-                + "INNER JOIN cliente c ON c.id_cliente = v.id_cliente "
-                + "LEFT JOIN distritos d ON d.id_distrito = c.id_distrito "
+                + "INNER JOIN lugar_entrega le ON le.id_lugar_entrega = v.id_lugar_entrega "
+                + "LEFT JOIN distritos d ON d.id_distrito = le.id_distrito "
                 + "WHERE v.estado IN ('VENDIDA', 'PAGADA') "
                 + "GROUP BY COALESCE(d.nombre, 'Otro') "
                 + "ORDER BY total DESC, ventas DESC, distrito ASC LIMIT 8";
@@ -172,7 +172,7 @@ public class DashboardDAO {
                 ventasHoy(),
                 ventasSemana(),
                 ventasMes(),
-                totalClientes(),
+                totalLugaresEntrega(),
                 totalProductos(),
                 productosStockBajo(),
                 ventasPorDistrito(),
@@ -197,7 +197,7 @@ public class DashboardDAO {
             ventas.add(new Object[]{
                 rs.getLong("id_venta"),
                 rs.getTimestamp("fecha_venta"),
-                rs.getString("nombre_completo"),
+                rs.getString("direccion"),
                 rs.getString("dni_ruc"),
                 rs.getBigDecimal("total"),
                 VentaEstado.normalizar(rs.getString("estado"))
@@ -209,10 +209,10 @@ public class DashboardDAO {
     public VentaTicket obtenerVentaTicket(long idVenta) throws SQLException {
         String ventaSql = "SELECT v.id_venta, "
                 + "COALESCE(v.documento_comprobante, '') AS documento_comprobante, "
-                + "v.fecha_venta, v.hora_entrega_pactada, v.total, v.estado, c.id_cliente, c.nombre_completo, "
-                + "c.numero, c.direccion, c.id_distrito, COALESCE(d.nombre, 'Otro') AS distrito "
-                + "FROM venta v INNER JOIN cliente c ON c.id_cliente = v.id_cliente "
-                + "LEFT JOIN distritos d ON d.id_distrito = c.id_distrito "
+                + "v.fecha_venta, v.hora_entrega_pactada, v.total, v.estado, le.id_lugar_entrega, "
+                + "le.numero, le.direccion, le.id_distrito, COALESCE(d.nombre, 'Otro') AS distrito "
+                + "FROM venta v INNER JOIN lugar_entrega le ON le.id_lugar_entrega = v.id_lugar_entrega "
+                + "LEFT JOIN distritos d ON d.id_distrito = le.id_distrito "
                 + "WHERE v.id_venta = ?";
         String detalleSql = "SELECT d.id_producto, COALESCE(p.nombre_producto, CONCAT('Producto ', d.id_producto)) AS producto, "
                 + "d.precio, d.cantidad "
@@ -220,7 +220,7 @@ public class DashboardDAO {
                 + "WHERE d.id_venta = ? ORDER BY d.id_detalle";
 
         try (Connection conn = Conexion.abrir()) {
-            Cliente cliente;
+            LugarEntrega lugarEntrega;
             String documento;
             LocalDateTime fecha;
             LocalDateTime horaEntregaPactada;
@@ -233,9 +233,8 @@ public class DashboardDAO {
                     if (!rs.next()) {
                         throw new SQLException("La venta seleccionada ya no existe.");
                     }
-                    cliente = new Cliente(
-                            rs.getInt("id_cliente"),
-                            rs.getString("nombre_completo"),
+                    lugarEntrega = new LugarEntrega(
+                            rs.getInt("id_lugar_entrega"),
                             rs.getString("numero"),
                             rs.getString("direccion"),
                             rs.getInt("id_distrito"),
@@ -267,7 +266,7 @@ public class DashboardDAO {
             if (lineas.isEmpty()) {
                 throw new SQLException("La venta seleccionada no tiene detalle para exportar.");
             }
-            return new VentaTicket(idVenta, cliente, documento, fecha, total, lineas, estado, horaEntregaPactada);
+            return new VentaTicket(idVenta, lugarEntrega, documento, fecha, total, lineas, estado, horaEntregaPactada);
         }
     }
 

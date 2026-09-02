@@ -24,7 +24,6 @@ public class PrincipalFrame extends JFrame {
     private final VentasPanel ventasPanel;
     private DashboardPanel dashboardPanel;
     private ProductosPanel productosPanel;
-    private ClientesPanel clientesPanel;
     private JTabbedPane tabs;
 
     public PrincipalFrame(Usuario usuario) {
@@ -57,7 +56,6 @@ public class PrincipalFrame extends JFrame {
         JMenuItem dashboard = new JMenuItem("Dashboard");
         JMenuItem ventas = new JMenuItem("Ventas");
         JMenuItem productos = new JMenuItem("Productos");
-        JMenuItem clientes = new JMenuItem("Clientes");
         JMenuItem actualizar = new JMenuItem("Actualizar datos");
         JMenuItem cerrarSesion = new JMenuItem("Cerrar sesion");
         JMenuItem salir = new JMenuItem("Salir");
@@ -65,7 +63,6 @@ public class PrincipalFrame extends JFrame {
         dashboard.addActionListener(e -> seleccionar(0));
         ventas.addActionListener(e -> seleccionar(usuario.esAdministrador() ? 1 : 0));
         productos.addActionListener(e -> seleccionar(2));
-        clientes.addActionListener(e -> seleccionar(3));
         actualizar.addActionListener(e -> cargarSegunPerfil());
         cerrarSesion.addActionListener(e -> cerrarSesion());
         salir.addActionListener(e -> salirDelSistema());
@@ -80,7 +77,6 @@ public class PrincipalFrame extends JFrame {
         navegar.add(ventas);
         if (usuario.esAdministrador()) {
             navegar.add(productos);
-            navegar.add(clientes);
         }
         menuBar.add(navegar);
         menuBar.add(archivo);
@@ -94,13 +90,11 @@ public class PrincipalFrame extends JFrame {
         if (usuario.esAdministrador()) {
             dashboardPanel = new DashboardPanel();
             productosPanel = new ProductosPanel();
-            clientesPanel = new ClientesPanel();
             tabs.addTab("Dashboard", new ImageIcon(AppIcon.crear(18)), dashboardPanel);
         }
         tabs.addTab("Ventas", ventasPanel);
         if (usuario.esAdministrador()) {
             tabs.addTab("Productos", productosPanel);
-            tabs.addTab("Clientes", clientesPanel);
         }
         tabs.addChangeListener(e -> cargarSegunPerfil());
         add(tabs, BorderLayout.CENTER);
@@ -151,8 +145,6 @@ public class PrincipalFrame extends JFrame {
             ventasPanel.cargarDatos();
         } else if (seleccion == 2) {
             productosPanel.cargar();
-        } else if (seleccion == 3) {
-            clientesPanel.cargar();
         }
     }
 

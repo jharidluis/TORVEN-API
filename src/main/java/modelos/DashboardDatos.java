@@ -9,19 +9,19 @@ public final class DashboardDatos {
     private final BigDecimal ventasHoy;
     private final BigDecimal ventasSemana;
     private final BigDecimal ventasMes;
-    private final int totalClientes;
+    private final int totalLugaresEntrega;
     private final int totalProductos;
     private final int stockBajo;
     private final List<Object[]> distritos;
     private final List<Object[]> ventas;
 
     public DashboardDatos(BigDecimal ventasHoy, BigDecimal ventasSemana, BigDecimal ventasMes,
-            int totalClientes, int totalProductos, int stockBajo,
+            int totalLugaresEntrega, int totalProductos, int stockBajo,
             List<Object[]> distritos, List<Object[]> ventas) {
         this.ventasHoy = valor(ventasHoy);
         this.ventasSemana = valor(ventasSemana);
         this.ventasMes = valor(ventasMes);
-        this.totalClientes = totalClientes;
+        this.totalLugaresEntrega = totalLugaresEntrega;
         this.totalProductos = totalProductos;
         this.stockBajo = stockBajo;
         this.distritos = copia(distritos);
@@ -40,8 +40,8 @@ public final class DashboardDatos {
         return ventasMes;
     }
 
-    public int getTotalClientes() {
-        return totalClientes;
+    public int getTotalLugaresEntrega() {
+        return totalLugaresEntrega;
     }
 
     public int getTotalProductos() {

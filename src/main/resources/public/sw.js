@@ -1,7 +1,7 @@
 // Sube este numero en cada deploy que toque index.html/app.js/styles.css:
 // el navegador solo reinstala el service worker (y refresca el cache) si este
 // archivo cambia de contenido, aunque los otros archivos si hayan cambiado.
-const CACHE_NAME = 'torven-shell-v5';
+const CACHE_NAME = 'torven-shell-v6';
 const ARCHIVOS_SHELL = [
   '/',
   '/index.html',
@@ -31,8 +31,8 @@ self.addEventListener('activate', (evento) => {
 self.addEventListener('fetch', (evento) => {
   const url = new URL(evento.request.url);
 
-  // Los datos (login, productos, clientes, ventas) siempre van a la red:
-  // nunca deben servirse desde cache, porque el stock y los precios cambian.
+  // Los datos (login, productos, lugares de entrega, ventas) siempre van a la
+  // red: nunca deben servirse desde cache, porque el stock y los precios cambian.
   if (url.pathname.startsWith('/api/')) {
     return;
   }

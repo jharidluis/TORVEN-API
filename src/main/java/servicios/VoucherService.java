@@ -52,9 +52,9 @@ public class VoucherService {
         lineas.add(campo("Ticket", String.format("%08d", ticket.getIdVenta())));
         lineas.add(campo("Fecha", FECHA.format(ticket.getFecha())));
         lineas.add(campo("Estado", VentaEstado.etiqueta(ticket.getEstado())));
-        lineas.add(campo("Cliente", recortar(ticket.getCliente().getNombre(), 35)));
+        lineas.add(campo("Direccion", recortar(ticket.getLugarEntrega().getDireccion(), 35)));
         lineas.add(campo("DNI/RUC", valor(ticket.getDocumentoComprobante(), "Sin documento")));
-        String distrito = valor(ticket.getCliente().getDistrito(), "");
+        String distrito = valor(ticket.getLugarEntrega().getDistrito(), "");
         if (!distrito.isEmpty() && !"Sin distrito".equalsIgnoreCase(distrito)) {
             lineas.add(campo("Distrito", distrito));
         }

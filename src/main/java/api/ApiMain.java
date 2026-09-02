@@ -4,8 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import configuracion.AuditoriaContext;
-import dao.ClienteDAO;
 import dao.DashboardDAO;
+import dao.LugarEntregaDAO;
 import dao.ProductoDAO;
 import dao.UsuarioDAO;
 import dao.VentaDAO;
@@ -25,25 +25,25 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import modelos.Cliente;
 import modelos.Distrito;
 import modelos.LineaVenta;
+import modelos.LugarEntrega;
 import modelos.Usuario;
 import modelos.VentaEstado;
 import modelos.VentaTicket;
 
 /**
  * API para la version movil de Torven. Solo cubre lo esencial para vender
- * desde el celular: iniciar sesion, buscar productos y clientes, y registrar
- * una venta. La gestion de clientes/productos y el dashboard siguen siendo
- * exclusivos de la app de escritorio.
+ * desde el celular: iniciar sesion, buscar productos y registrar una venta
+ * (con su lugar de entrega). La gestion de productos y el dashboard siguen
+ * siendo exclusivos de la app de escritorio.
  *
  * Reutiliza los mismos DAO que la app de escritorio: la logica de negocio
  * (validar stock, precios, permisos) vive en un solo lugar.
  */
 public final class ApiMain {
     private static final UsuarioDAO usuarioDAO = new UsuarioDAO();
-    private static final ClienteDAO clienteDAO = new ClienteDAO();
+    private static final LugarEntregaDAO lugarEntregaDAO = new LugarEntregaDAO();
     private static final ProductoDAO productoDAO = new ProductoDAO();
     private static final VentaDAO ventaDAO = new VentaDAO();
     private static final DashboardDAO dashboardDAO = new DashboardDAO();
@@ -71,8 +71,7 @@ public final class ApiMain {
         app.post("/api/login", ApiMain::login);
         app.post("/api/logout", ApiMain::logout);
         app.get("/api/productos", ApiMain::listarProductos);
-        app.get("/api/clientes", ApiMain::listarClientes);
-        app.post("/api/clientes", ApiMain::crearCliente);
+        app.post("/api/lugares-entrega", ApiMain::crearLugarEntrega);
         app.get("/api/distritos", ApiMain::listarDistritos);
         app.post("/api/ventas", ApiMain::registrarVenta);
         app.get("/api/reservas", ApiMain::listarReservas);
@@ -159,40 +158,30 @@ public final class ApiMain {
         ctx.json(productoDAO.listar(ctx.queryParam("buscar")));
     }
 
-    private static void listarClientes(Context ctx) throws SQLException {
-        autenticado(ctx);
-        ctx.json(clienteDAO.listar(ctx.queryParam("buscar")));
-    }
-
     private static void listarDistritos(Context ctx) throws SQLException {
         autenticado(ctx);
-        ctx.json(clienteDAO.listarDistritos());
+        ctx.json(lugarEntregaDAO.listarDistritos());
     }
 
-    private static void crearCliente(Context ctx) throws SQLException {
+    private static void crearLugarEntrega(Context ctx) throws SQLException {
         Usuario usuario = autenticado(ctx);
-        ClienteRequest cuerpo = ctx.bodyAsClass(ClienteRequest.class);
-        if (cuerpo.nombre == null || cuerpo.nombre.trim().isEmpty()) {
-            throw new BadRequestResponse("Ingresa el nombre del cliente.");
-        }
+        LugarEntregaRequest cuerpo = ctx.bodyAsClass(LugarEntregaRequest.class);
         if (cuerpo.direccion == null || cuerpo.direccion.trim().isEmpty()) {
-            throw new BadRequestResponse("Ingresa la direccion del cliente.");
+            throw new BadRequestResponse("Ingresa la direccion de entrega.");
+        }
+        if (cuerpo.idDistrito <= 0) {
+            throw new BadRequestResponse("Selecciona el distrito de entrega.");
         }
 
-        Cliente cliente = new Cliente();
-        cliente.setNombre(cuerpo.nombre);
-        cliente.setNumero(cuerpo.numero == null ? "" : cuerpo.numero);
-        cliente.setDireccion(cuerpo.direccion);
-        if (cuerpo.idDistrito > 0) {
-            cliente.setIdDistrito(cuerpo.idDistrito);
-        } else {
-            cliente.setDistrito(cuerpo.distrito == null ? "" : cuerpo.distrito);
-        }
+        LugarEntrega lugarEntrega = new LugarEntrega();
+        lugarEntrega.setNumero(cuerpo.numero == null ? "" : cuerpo.numero);
+        lugarEntrega.setDireccion(cuerpo.direccion);
+        lugarEntrega.setIdDistrito(cuerpo.idDistrito);
 
         AuditoriaContext.establecer(usuario);
         try {
-            clienteDAO.guardar(cliente);
-            ctx.json(clienteDAO.obtenerPorId(cliente.getId()));
+            lugarEntregaDAO.crear(lugarEntrega);
+            ctx.json(lugarEntregaDAO.obtenerPorId(lugarEntrega.getId()));
         } finally {
             AuditoriaContext.limpiar();
         }
@@ -201,8 +190,8 @@ public final class ApiMain {
     private static void registrarVenta(Context ctx) throws SQLException {
         Usuario usuario = autenticado(ctx);
         VentaRequest cuerpo = ctx.bodyAsClass(VentaRequest.class);
-        if (cuerpo.idCliente <= 0) {
-            throw new BadRequestResponse("Selecciona un cliente.");
+        if (cuerpo.idLugarEntrega <= 0) {
+            throw new BadRequestResponse("Falta el lugar de entrega.");
         }
         if (cuerpo.lineas == null || cuerpo.lineas.isEmpty()) {
             throw new BadRequestResponse("Agrega al menos un producto al carrito.");
@@ -226,7 +215,7 @@ public final class ApiMain {
 
         AuditoriaContext.establecer(usuario);
         try {
-            VentaTicket ticket = ventaDAO.registrarReserva(cuerpo.idCliente, carrito, horaEntregaPactada);
+            VentaTicket ticket = ventaDAO.registrarReserva(cuerpo.idLugarEntrega, carrito, horaEntregaPactada);
             ctx.json(ticket);
         } finally {
             AuditoriaContext.limpiar();

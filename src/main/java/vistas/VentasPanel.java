@@ -1,11 +1,9 @@
 package vistas;
 
-import dao.ClienteDAO;
+import dao.LugarEntregaDAO;
 import dao.ProductoDAO;
 import dao.VentaDAO;
 import java.awt.BorderLayout;
-import java.awt.CardLayout;
-import java.awt.Dimension;
 import java.awt.Dialog;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -24,6 +22,7 @@ import java.util.concurrent.ExecutionException;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultCellEditor;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
@@ -42,8 +41,9 @@ import javax.swing.text.DocumentFilter;
 import javax.swing.text.PlainDocument;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.event.TableModelEvent;
-import modelos.Cliente;
+import modelos.Distrito;
 import modelos.LineaVenta;
+import modelos.LugarEntrega;
 import modelos.Producto;
 import modelos.Usuario;
 import modelos.VentaEstado;
@@ -51,29 +51,23 @@ import modelos.VentaTicket;
 import servicios.VoucherService;
 
 public class VentasPanel extends JPanel {
-    private static final String CLIENTE_BUSQUEDA = "cliente_busqueda";
-    private static final String CLIENTE_SELECCIONADO = "cliente_seleccionado";
     private static final DateTimeFormatter FECHA_RESERVA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
-    private final ClienteDAO clienteDAO = new ClienteDAO();
+    private final LugarEntregaDAO lugarEntregaDAO = new LugarEntregaDAO();
     private final ProductoDAO productoDAO = new ProductoDAO();
     private final VentaDAO ventaDAO = new VentaDAO();
     private final VoucherService voucherService = new VoucherService();
     private final boolean mostrarGestionReservas;
 
-    private final JTextField txtBuscarCliente = new JTextField(22);
+    private final JTextField txtDireccionEntrega = new JTextField(22);
+    private final JComboBox<Distrito> comboDistritoEntrega = new JComboBox<Distrito>();
+    private final JTextField txtNumeroEntrega = new JTextField(14);
     private final JTextField txtBuscarProducto = new JTextField(22);
-    private final JTable tablaClientes = new JTable();
     private final JTable tablaProductos = new JTable();
     private final JTable tablaCarrito = new JTable();
     private final JTable tablaReservas = new JTable();
-    private final CardLayout clienteLayout = new CardLayout();
-    private final JPanel panelClienteContenido = new JPanel(clienteLayout);
-    private final JLabel lblClienteNombre = new JLabel("Cliente no seleccionado");
-    private final JLabel lblClienteDetalle = new JLabel("Busca y selecciona un cliente");
-    private final DefaultTableModel modeloClientes = Ui.modelo("ID", "Cliente", "Telefono", "Distrito");
     private final DefaultTableModel modeloProductos = Ui.modelo("ID", "Producto", "Precio", "Stock");
-    private final DefaultTableModel modeloReservas = Ui.modelo("Reserva", "Fecha", "Cliente", "Comprobante", "Total");
+    private final DefaultTableModel modeloReservas = Ui.modelo("Reserva", "Fecha", "Direccion", "Comprobante", "Total");
     private final DefaultTableModel modeloCarrito = new DefaultTableModel(
             new Object[]{"ID", "Producto", "Precio unit.", "Cant.", "Subtotal"}, 0) {
         @Override
@@ -92,13 +86,10 @@ public class VentasPanel extends JPanel {
 
     private final List<LineaVenta> carrito = new ArrayList<LineaVenta>();
     private VentaTicket ultimoTicket;
-    private int clienteSeleccionadoId;
     private boolean actualizandoCarrito;
-    private boolean cargandoClientes;
-    private SwingWorker<CargaClientes, Void> cargaClientesActual;
+    private boolean distritosCargados;
     private SwingWorker<List<Producto>, Void> cargaProductosActual;
     private SwingWorker<List<Object[]>, Void> cargaReservasActual;
-    private int versionClientes;
     private int versionProductos;
     private int versionReservas;
 
@@ -112,22 +103,10 @@ public class VentasPanel extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
         setBackground(Ui.COLOR_FONDO);
         construir();
-        Ui.alCambiarTexto(txtBuscarCliente, new Runnable() {
-            @Override
-            public void run() {
-                cargarClientes();
-            }
-        });
         Ui.alCambiarTexto(txtBuscarProducto, new Runnable() {
             @Override
             public void run() {
                 cargarProductos();
-            }
-        });
-        DatosEventBus.alCambiarClientes(new Runnable() {
-            @Override
-            public void run() {
-                cargarClientes();
             }
         });
         DatosEventBus.alCambiarProductos(new Runnable() {
@@ -147,7 +126,7 @@ public class VentasPanel extends JPanel {
     }
 
     public void cargarDatos() {
-        cargarClientes();
+        cargarDistritosSiHaceFalta();
         cargarProductos();
         if (mostrarGestionReservas) {
             cargarReservasEnProceso();
@@ -155,19 +134,13 @@ public class VentasPanel extends JPanel {
     }
 
     private void construir() {
-        tablaClientes.setModel(modeloClientes);
         tablaProductos.setModel(modeloProductos);
         tablaCarrito.setModel(modeloCarrito);
         tablaReservas.setModel(modeloReservas);
         tablaCarrito.putClientProperty("terminateEditOnFocusLost", Boolean.TRUE);
-        Ui.prepararTabla(tablaClientes);
         Ui.prepararTabla(tablaProductos);
         Ui.prepararTabla(tablaCarrito);
         Ui.prepararTabla(tablaReservas);
-        Ui.ocultarColumna(tablaClientes, 0);
-        Ui.anchoColumna(tablaClientes, 1, 240);
-        Ui.anchoColumna(tablaClientes, 2, 95);
-        Ui.anchoColumna(tablaClientes, 3, 140);
         Ui.ocultarColumna(tablaProductos, 0);
         Ui.anchoColumna(tablaProductos, 1, 250);
         Ui.anchoColumna(tablaProductos, 2, 90);
@@ -194,11 +167,6 @@ public class VentasPanel extends JPanel {
                 actualizarCantidadDesdeTabla(e.getFirstRow());
             }
         });
-        tablaClientes.getSelectionModel().addListSelectionListener(e -> {
-            if (!cargandoClientes && !e.getValueIsAdjusting()) {
-                fijarClienteDesdeTabla();
-            }
-        });
         tablaReservas.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 actualizarAccionesReserva();
@@ -216,7 +184,7 @@ public class VentasPanel extends JPanel {
 
         JPanel centro = new JPanel(new BorderLayout(0, 10));
         centro.setOpaque(false);
-        centro.add(panelClientes(), BorderLayout.NORTH);
+        centro.add(panelEntrega(), BorderLayout.NORTH);
 
         JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, panelProductos(), panelCarrito());
         split.setResizeWeight(0.60);
@@ -273,67 +241,25 @@ public class VentasPanel extends JPanel {
         actualizarCarrito();
     }
 
-    private JPanel panelClientes() {
+    private JPanel panelEntrega() {
         JPanel panel = new JPanel(new BorderLayout(8, 8));
         Ui.tarjeta(panel);
-        panelClienteContenido.setOpaque(false);
-        panelClienteContenido.add(vistaBusquedaCliente(), CLIENTE_BUSQUEDA);
-        panelClienteContenido.add(vistaClienteSeleccionado(), CLIENTE_SELECCIONADO);
-        panel.add(panelClienteContenido, BorderLayout.CENTER);
-        clienteLayout.show(panelClienteContenido, CLIENTE_BUSQUEDA);
-        return panel;
-    }
 
-    private JPanel vistaBusquedaCliente() {
-        JPanel panel = new JPanel(new BorderLayout(8, 8));
-        panel.setOpaque(false);
-
-        JPanel encabezado = new JPanel(new BorderLayout(12, 0));
-        encabezado.setOpaque(false);
-        JPanel textos = new JPanel(new GridLayout(2, 1));
-        textos.setOpaque(false);
-        JLabel titulo = new JLabel("Cliente");
+        JLabel titulo = new JLabel("Entrega");
         titulo.setFont(titulo.getFont().deriveFont(Font.BOLD, 15f));
         titulo.setForeground(Ui.COLOR_TEXTO);
-        JLabel detalle = new JLabel("Buscar por telefono, distrito o nombre");
-        detalle.setForeground(Ui.COLOR_MUTED);
-        textos.add(titulo);
-        textos.add(detalle);
 
-        JPanel buscar = new JPanel(new BorderLayout(6, 0));
-        buscar.setOpaque(false);
-        buscar.add(new JLabel("Buscar"), BorderLayout.WEST);
-        buscar.add(txtBuscarCliente, BorderLayout.CENTER);
+        JPanel campos = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 6));
+        campos.setOpaque(false);
+        campos.add(new JLabel("Direccion"));
+        campos.add(txtDireccionEntrega);
+        campos.add(new JLabel("Distrito"));
+        campos.add(comboDistritoEntrega);
+        campos.add(new JLabel("Numero (opcional)"));
+        campos.add(txtNumeroEntrega);
 
-        encabezado.add(textos, BorderLayout.WEST);
-        encabezado.add(buscar, BorderLayout.CENTER);
-
-        JScrollPane scroll = new JScrollPane(tablaClientes);
-        scroll.setPreferredSize(new Dimension(520, 132));
-
-        panel.add(encabezado, BorderLayout.NORTH);
-        panel.add(scroll, BorderLayout.CENTER);
-        return panel;
-    }
-
-    private JPanel vistaClienteSeleccionado() {
-        JPanel panel = new JPanel(new BorderLayout(12, 0));
-        panel.setOpaque(false);
-
-        JPanel textos = new JPanel(new GridLayout(2, 1));
-        textos.setOpaque(false);
-        lblClienteNombre.setFont(lblClienteNombre.getFont().deriveFont(Font.BOLD, 16f));
-        lblClienteNombre.setForeground(Ui.COLOR_TEXTO);
-        lblClienteDetalle.setForeground(Ui.COLOR_MUTED);
-        textos.add(lblClienteNombre);
-        textos.add(lblClienteDetalle);
-
-        JButton cambiar = new JButton("Cambiar cliente");
-        Ui.estilizarBotonSecundario(cambiar);
-        cambiar.addActionListener(e -> mostrarBusquedaCliente());
-
-        panel.add(textos, BorderLayout.CENTER);
-        panel.add(cambiar, BorderLayout.EAST);
+        panel.add(titulo, BorderLayout.NORTH);
+        panel.add(campos, BorderLayout.CENTER);
         return panel;
     }
 
@@ -420,37 +346,33 @@ public class VentasPanel extends JPanel {
         return panel;
     }
 
-    private void cargarClientes() {
-        final int clienteId = clienteSeleccionadoId;
-        final String filtro = txtBuscarCliente.getText();
-        final int version = ++versionClientes;
-        if (cargaClientesActual != null && !cargaClientesActual.isDone()) {
-            cargaClientesActual.cancel(true);
+    private void cargarDistritosSiHaceFalta() {
+        if (distritosCargados) {
+            return;
         }
-        cargaClientesActual = new SwingWorker<CargaClientes, Void>() {
+        distritosCargados = true;
+        new SwingWorker<List<Distrito>, Void>() {
             @Override
-            protected CargaClientes doInBackground() throws Exception {
-                Cliente seleccionado = clienteId > 0 ? clienteDAO.obtenerPorId(clienteId) : null;
-                return new CargaClientes(seleccionado, clienteDAO.listar(filtro));
+            protected List<Distrito> doInBackground() throws Exception {
+                return lugarEntregaDAO.listarDistritos();
             }
 
             @Override
             protected void done() {
-                if (version != versionClientes) {
-                    return;
-                }
                 try {
-                    aplicarClientes(clienteId, get());
-                } catch (CancellationException ignored) {
-                    // La busqueda mas reciente reemplazo esta consulta.
+                    for (Distrito distrito : get()) {
+                        comboDistritoEntrega.addItem(distrito);
+                        if ("Otro".equals(distrito.getNombre())) {
+                            comboDistritoEntrega.setSelectedItem(distrito);
+                        }
+                    }
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
                 } catch (ExecutionException ex) {
                     Ui.error(VentasPanel.this, excepcionReal(ex));
                 }
             }
-        };
-        cargaClientesActual.execute();
+        }.execute();
     }
 
     private void cargarProductos() {
@@ -514,34 +436,6 @@ public class VentasPanel extends JPanel {
         cargaReservasActual.execute();
     }
 
-    private void aplicarClientes(int clienteId, CargaClientes carga) {
-        if (clienteId > 0 && clienteSeleccionadoId == clienteId) {
-            if (carga.seleccionado == null) {
-                clienteSeleccionadoId = 0;
-                mostrarBusquedaCliente();
-            } else {
-                actualizarClienteSeleccionado(carga.seleccionado.getId(), carga.seleccionado.getNombre(),
-                        carga.seleccionado.getNumero(), carga.seleccionado.getDistrito());
-            }
-        }
-
-        cargandoClientes = true;
-        try {
-            modeloClientes.setRowCount(0);
-            for (Cliente cliente : carga.clientes) {
-                modeloClientes.addRow(new Object[]{
-                    cliente.getId(),
-                    cliente.getNombre(),
-                    texto(cliente.getNumero()),
-                    texto(cliente.getDistrito())
-                });
-            }
-            seleccionarClienteEnTabla(clienteSeleccionadoId);
-        } finally {
-            cargandoClientes = false;
-        }
-    }
-
     private void aplicarProductos(List<Producto> productos) {
         modeloProductos.setRowCount(0);
         for (Producto producto : productos) {
@@ -580,16 +474,6 @@ public class VentasPanel extends JPanel {
         return causa instanceof Exception
                 ? (Exception) causa
                 : new SQLException("No se pudieron actualizar los datos de ventas.", causa);
-    }
-
-    private static final class CargaClientes {
-        private final Cliente seleccionado;
-        private final List<Cliente> clientes;
-
-        private CargaClientes(Cliente seleccionado, List<Cliente> clientes) {
-            this.seleccionado = seleccionado;
-            this.clientes = clientes;
-        }
     }
 
     private String fechaReserva(Object value) {
@@ -657,20 +541,27 @@ public class VentasPanel extends JPanel {
 
     private void reservar() {
         try {
-            int idCliente = clienteSeleccionado();
-            if (idCliente <= 0) {
-                Ui.aviso(this, "Selecciona un cliente antes de registrar la venta.");
+            String direccion = txtDireccionEntrega.getText().trim();
+            Distrito distrito = (Distrito) comboDistritoEntrega.getSelectedItem();
+            if (direccion.isEmpty() || distrito == null) {
+                Ui.aviso(this, "Ingresa la direccion y el distrito de entrega antes de registrar la venta.");
                 return;
             }
+            LugarEntrega lugarEntrega = new LugarEntrega();
+            lugarEntrega.setDireccion(direccion);
+            lugarEntrega.setNumero(txtNumeroEntrega.getText().trim());
+            lugarEntrega.setIdDistrito(distrito.getId());
+            lugarEntregaDAO.crear(lugarEntrega);
+
             List<LineaVenta> copia = new ArrayList<LineaVenta>();
             for (LineaVenta linea : carrito) {
                 copia.add(new LineaVenta(linea.getIdProducto(), linea.getNombreProducto(),
                         linea.getPrecio(), linea.getCantidad()));
             }
-            VentaTicket ticket = ventaDAO.registrarReserva(idCliente, copia);
+            VentaTicket ticket = ventaDAO.registrarReserva(lugarEntrega.getId(), copia);
             ultimoTicket = ticket;
             carrito.clear();
-            deseleccionarCliente();
+            limpiarFormularioEntrega();
             actualizarCarrito();
             DatosEventBus.publicarVentas();
             DatosEventBus.publicarProductos();
@@ -920,65 +811,15 @@ public class VentasPanel extends JPanel {
         return null;
     }
 
-    private int clienteSeleccionado() {
-        return clienteSeleccionadoId;
-    }
-
-    private void deseleccionarCliente() {
-        clienteSeleccionadoId = 0;
-        tablaClientes.clearSelection();
-        txtBuscarCliente.setText("");
-        lblClienteNombre.setText("Cliente no seleccionado");
-        lblClienteDetalle.setText("Busca y selecciona un cliente");
-        mostrarBusquedaCliente();
-    }
-
-    private void seleccionarClienteEnTabla(int id) {
-        tablaClientes.clearSelection();
-        if (id <= 0) {
-            return;
-        }
-        for (int i = 0; i < modeloClientes.getRowCount(); i++) {
-            if (((Integer) modeloClientes.getValueAt(i, 0)).intValue() == id) {
-                tablaClientes.setRowSelectionInterval(i, i);
-                return;
+    private void limpiarFormularioEntrega() {
+        txtDireccionEntrega.setText("");
+        txtNumeroEntrega.setText("");
+        for (int i = 0; i < comboDistritoEntrega.getItemCount(); i++) {
+            if ("Otro".equals(comboDistritoEntrega.getItemAt(i).getNombre())) {
+                comboDistritoEntrega.setSelectedIndex(i);
+                break;
             }
         }
-    }
-
-    private void fijarClienteDesdeTabla() {
-        int row = tablaClientes.getSelectedRow();
-        if (row < 0) {
-            return;
-        }
-        int modelRow = tablaClientes.convertRowIndexToModel(row);
-        int id = ((Integer) modeloClientes.getValueAt(modelRow, 0)).intValue();
-        String nombre = String.valueOf(modeloClientes.getValueAt(modelRow, 1));
-        String telefono = String.valueOf(modeloClientes.getValueAt(modelRow, 2));
-        String distrito = String.valueOf(modeloClientes.getValueAt(modelRow, 3));
-        actualizarClienteSeleccionado(id, nombre, telefono, distrito);
-        mostrarClienteSeleccionado();
-    }
-
-    private void actualizarClienteSeleccionado(int id, String nombre, String telefono, String distrito) {
-        clienteSeleccionadoId = id;
-        lblClienteNombre.setText(nombre == null || nombre.trim().isEmpty() ? "Cliente seleccionado" : nombre.trim());
-        String documento = telefono == null || telefono.trim().isEmpty() ? "Sin telefono" : "Telefono: " + telefono.trim();
-        String distritoTexto = distrito == null || distrito.trim().isEmpty() ? "Sin distrito" : "Distrito: " + distrito.trim();
-        lblClienteDetalle.setText(documento + " | " + distritoTexto);
-    }
-
-    private void mostrarClienteSeleccionado() {
-        clienteLayout.show(panelClienteContenido, CLIENTE_SELECCIONADO);
-        panelClienteContenido.revalidate();
-        panelClienteContenido.repaint();
-    }
-
-    private void mostrarBusquedaCliente() {
-        clienteLayout.show(panelClienteContenido, CLIENTE_BUSQUEDA);
-        panelClienteContenido.revalidate();
-        panelClienteContenido.repaint();
-        txtBuscarCliente.requestFocusInWindow();
     }
 
     private void actualizarBotonesVoucher() {
@@ -991,10 +832,6 @@ public class VentasPanel extends JPanel {
         boolean tieneReserva = tablaReservas.getSelectedRow() >= 0;
         btnVenderReserva.setEnabled(tieneReserva);
         btnCancelarReserva.setEnabled(tieneReserva);
-    }
-
-    private String texto(String value) {
-        return value == null ? "" : value;
     }
 
     private class CantidadCellEditor extends DefaultCellEditor {

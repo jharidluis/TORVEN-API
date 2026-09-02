@@ -6,7 +6,7 @@
 
     <groupId>pe.tienda</groupId>
     <artifactId>sistema-venta-tienda</artifactId>
-    <version>1.2.0</version>
+    <version>1.2.1</version>
     <packaging>jar</packaging>
 
     <name>Torven Sistema de Ventas</name>

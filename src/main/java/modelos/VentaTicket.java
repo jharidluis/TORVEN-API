@@ -8,7 +8,7 @@ import java.util.List;
 
 public class VentaTicket {
     private final long idVenta;
-    private final Cliente cliente;
+    private final LugarEntrega lugarEntrega;
     private final String documentoComprobante;
     private final LocalDateTime fecha;
     private final BigDecimal total;
@@ -16,21 +16,21 @@ public class VentaTicket {
     private final String estado;
     private final LocalDateTime horaEntregaPactada;
 
-    public VentaTicket(long idVenta, Cliente cliente, String documentoComprobante,
+    public VentaTicket(long idVenta, LugarEntrega lugarEntrega, String documentoComprobante,
             LocalDateTime fecha, BigDecimal total, List<LineaVenta> lineas) {
-        this(idVenta, cliente, documentoComprobante, fecha, total, lineas, VentaEstado.VENDIDA, null);
+        this(idVenta, lugarEntrega, documentoComprobante, fecha, total, lineas, VentaEstado.VENDIDA, null);
     }
 
-    public VentaTicket(long idVenta, Cliente cliente, String documentoComprobante,
+    public VentaTicket(long idVenta, LugarEntrega lugarEntrega, String documentoComprobante,
             LocalDateTime fecha, BigDecimal total, List<LineaVenta> lineas, String estado) {
-        this(idVenta, cliente, documentoComprobante, fecha, total, lineas, estado, null);
+        this(idVenta, lugarEntrega, documentoComprobante, fecha, total, lineas, estado, null);
     }
 
-    public VentaTicket(long idVenta, Cliente cliente, String documentoComprobante,
+    public VentaTicket(long idVenta, LugarEntrega lugarEntrega, String documentoComprobante,
             LocalDateTime fecha, BigDecimal total, List<LineaVenta> lineas, String estado,
             LocalDateTime horaEntregaPactada) {
         this.idVenta = idVenta;
-        this.cliente = cliente;
+        this.lugarEntrega = lugarEntrega;
         this.documentoComprobante = documentoComprobante;
         this.fecha = fecha;
         this.total = total;
@@ -43,8 +43,8 @@ public class VentaTicket {
         return idVenta;
     }
 
-    public Cliente getCliente() {
-        return cliente;
+    public LugarEntrega getLugarEntrega() {
+        return lugarEntrega;
     }
 
     public String getDocumentoComprobante() {

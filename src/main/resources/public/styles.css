@@ -230,28 +230,6 @@ input:focus {
   color: var(--peligro);
 }
 
-.chip-seleccionado {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: var(--primario);
-  color: #000000;
-  border-radius: 12px;
-  padding: 10px 14px;
-  font-weight: 600;
-  margin-bottom: 10px;
-}
-
-.boton-quitar {
-  background: none;
-  border: none;
-  color: #000000;
-  font-size: 20px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 4px;
-}
-
 .lista-carrito li {
   background: var(--superficie);
   border: 1px solid var(--borde);
@@ -352,12 +330,12 @@ input:focus {
   color: #000000;
 }
 
-#cliente-modo-nuevo label {
+#entrega-campos label {
   display: block;
   margin-top: 10px;
 }
 
-#cliente-modo-nuevo .campo-buscar {
+#entrega-campos .campo-buscar {
   margin-top: 4px;
 }
 

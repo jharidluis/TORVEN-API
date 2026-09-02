@@ -7,23 +7,21 @@ public class ReservaResumen {
     private final long idVenta;
     private final LocalDateTime fecha;
     private final LocalDateTime horaEntregaPactada;
-    private final String clienteNombre;
-    private final String clienteNumero;
-    private final String clienteDireccion;
-    private final String clienteDistrito;
+    private final String numero;
+    private final String direccion;
+    private final String distrito;
     private final BigDecimal total;
     private final String estado;
 
     public ReservaResumen(long idVenta, LocalDateTime fecha, LocalDateTime horaEntregaPactada,
-            String clienteNombre, String clienteNumero, String clienteDireccion, String clienteDistrito,
+            String numero, String direccion, String distrito,
             BigDecimal total, String estado) {
         this.idVenta = idVenta;
         this.fecha = fecha;
         this.horaEntregaPactada = horaEntregaPactada;
-        this.clienteNombre = clienteNombre;
-        this.clienteNumero = clienteNumero;
-        this.clienteDireccion = clienteDireccion;
-        this.clienteDistrito = clienteDistrito;
+        this.numero = numero;
+        this.direccion = direccion;
+        this.distrito = distrito;
         this.total = total;
         this.estado = VentaEstado.normalizar(estado);
     }
@@ -40,20 +38,16 @@ public class ReservaResumen {
         return horaEntregaPactada;
     }
 
-    public String getClienteNombre() {
-        return clienteNombre;
+    public String getNumero() {
+        return numero;
     }
 
-    public String getClienteNumero() {
-        return clienteNumero;
+    public String getDireccion() {
+        return direccion;
     }
 
-    public String getClienteDireccion() {
-        return clienteDireccion;
-    }
-
-    public String getClienteDistrito() {
-        return clienteDistrito;
+    public String getDistrito() {
+        return distrito;
     }
 
     public BigDecimal getTotal() {

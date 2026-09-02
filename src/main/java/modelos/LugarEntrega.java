@@ -1,24 +1,17 @@
 package modelos;
 
-public class Cliente {
+public class LugarEntrega {
     private int id;
-    private String nombre;
     private String numero;
     private String direccion;
     private int idDistrito;
     private String distrito;
 
-    public Cliente() {
+    public LugarEntrega() {
     }
 
-    public Cliente(int id, String nombre, String numero, String direccion) {
-        this(id, nombre, numero, direccion, 0, "");
-    }
-
-    public Cliente(int id, String nombre, String numero, String direccion,
-            int idDistrito, String distrito) {
+    public LugarEntrega(int id, String numero, String direccion, int idDistrito, String distrito) {
         this.id = id;
-        this.nombre = nombre;
         this.numero = numero;
         this.direccion = direccion;
         this.idDistrito = idDistrito;
@@ -31,14 +24,6 @@ public class Cliente {
 
     public void setId(int id) {
         this.id = id;
-    }
-
-    public String getNombre() {
-        return nombre;
-    }
-
-    public void setNombre(String nombre) {
-        this.nombre = nombre;
     }
 
     public String getNumero() {

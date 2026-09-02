@@ -1,9 +1,7 @@
 package api;
 
-public class ClienteRequest {
-    public String nombre;
+public class LugarEntregaRequest {
     public String numero;
     public String direccion;
     public int idDistrito;
-    public String distrito;
 }
