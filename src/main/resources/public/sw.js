@@ -1,7 +1,7 @@
 // Sube este numero en cada deploy que toque index.html/app.js/styles.css:
 // el navegador solo reinstala el service worker (y refresca el cache) si este
 // archivo cambia de contenido, aunque los otros archivos si hayan cambiado.
-const CACHE_NAME = 'torven-shell-v6';
+const CACHE_NAME = 'torven-shell-v7';
 const ARCHIVOS_SHELL = [
   '/',
   '/index.html',
@@ -37,7 +37,15 @@ self.addEventListener('fetch', (evento) => {
     return;
   }
 
+  // El resto (index.html, app.js, styles.css, iconos) va primero a la red
+  // para que cada deploy se vea de inmediato, sin depender de que el
+  // usuario borre datos del sitio. Si no hay conexion, se usa el cache
+  // como respaldo para que la app siga abriendo.
   evento.respondWith(
-    caches.match(evento.request).then((enCache) => enCache || fetch(evento.request))
+    fetch(evento.request).then((respuesta) => {
+      const copia = respuesta.clone();
+      caches.open(CACHE_NAME).then((cache) => cache.put(evento.request, copia));
+      return respuesta;
+    }).catch(() => caches.match(evento.request))
   );
 });
