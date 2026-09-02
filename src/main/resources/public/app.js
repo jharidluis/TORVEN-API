@@ -69,12 +69,20 @@
 
   // ---------- Llamadas a la API ----------
 
+  const API_TIMEOUT_MS = 20 * 1000;
+
   function apiFetch(ruta, opciones) {
     opciones = opciones || {};
     opciones.headers = Object.assign({}, opciones.headers, {
       'Authorization': 'Bearer ' + estado.token
     });
+
+    const controlador = new AbortController();
+    opciones.signal = controlador.signal;
+    const idTimeout = setTimeout(function () { controlador.abort(); }, API_TIMEOUT_MS);
+
     return fetch(ruta, opciones).then(function (respuesta) {
+      clearTimeout(idTimeout);
       if (respuesta.status === 401) {
         cerrarSesion();
         throw new Error('Tu sesion expiro. Inicia sesion de nuevo.');
@@ -85,6 +93,12 @@
         }
         return cuerpo;
       });
+    }).catch(function (error) {
+      clearTimeout(idTimeout);
+      if (error.name === 'AbortError') {
+        throw new Error('La conexion tardo demasiado. Revisa tu internet e intenta de nuevo.');
+      }
+      throw error;
     });
   }
 
