@@ -198,9 +198,9 @@
     reservasVacio.classList.toggle('oculto', reservas.length > 0);
 
     reservas.forEach(function (reserva) {
-      const atrasada = reserva.horaEntregaPactada && new Date(reserva.horaEntregaPactada) < new Date();
+      const claseTiempo = claseSegunTiempoRestante(reserva.horaEntregaPactada);
       const li = document.createElement('li');
-      li.className = 'tarjeta-reserva' + (atrasada ? ' tarjeta-reserva-atrasada' : '');
+      li.className = 'tarjeta-reserva' + (claseTiempo ? ' ' + claseTiempo : '');
       li.innerHTML =
         '<div class="tarjeta-reserva-info">' +
         '  <div class="item-titulo">' + escapar(reserva.direccion) + '</div>' +
@@ -310,6 +310,20 @@
       url += '&waypoints=' + paradas;
     }
     window.open(url, '_blank');
+  }
+
+  function claseSegunTiempoRestante(horaEntregaPactada) {
+    if (!horaEntregaPactada) {
+      return '';
+    }
+    const minutosRestantes = (new Date(horaEntregaPactada).getTime() - Date.now()) / 60000;
+    if (minutosRestantes <= 5) {
+      return 'tarjeta-reserva-rojo';
+    }
+    if (minutosRestantes <= 30) {
+      return 'tarjeta-reserva-amarillo';
+    }
+    return '';
   }
 
   function formatearFechaHora(valor) {

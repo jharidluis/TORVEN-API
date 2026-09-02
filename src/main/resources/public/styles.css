@@ -7,6 +7,7 @@
   --texto: #ffffff;
   --texto-tenue: #9a9a9a;
   --peligro: #ff5c5c;
+  --advertencia: #ffcc4d;
   --borde: #3a3a3a;
 }
 
@@ -399,11 +400,19 @@ select.campo-buscar {
   white-space: nowrap;
 }
 
-.tarjeta-reserva-atrasada {
+.tarjeta-reserva-amarillo {
+  border-color: var(--advertencia);
+}
+
+.tarjeta-reserva-amarillo .tarjeta-reserva-hora {
+  color: var(--advertencia);
+}
+
+.tarjeta-reserva-rojo {
   border-color: var(--peligro);
 }
 
-.tarjeta-reserva-atrasada .tarjeta-reserva-hora {
+.tarjeta-reserva-rojo .tarjeta-reserva-hora {
   color: var(--peligro);
 }
 
