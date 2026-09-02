@@ -50,6 +50,13 @@ public final class ApiMain {
     private static final TokenStore tokens = new TokenStore();
     private static final LoginThrottle loginThrottle = new LoginThrottle();
 
+    // Version mas reciente del instalador de escritorio, para el aviso de
+    // actualizacion (ver servicios.ActualizacionService). Actualizar estos dos
+    // valores cada vez que se suba un instalador nuevo a GitHub Releases.
+    private static final String VERSION_ESCRITORIO = "1.2.2";
+    private static final String VERSION_ESCRITORIO_URL =
+            "https://github.com/jharidluis/TORVEN-API/releases/download/v1.2.2/Torven.Sistema.de.Ventas-1.2.2.exe";
+
     private ApiMain() {
     }
 
@@ -70,6 +77,7 @@ public final class ApiMain {
 
         app.post("/api/login", ApiMain::login);
         app.post("/api/logout", ApiMain::logout);
+        app.get("/api/version", ApiMain::obtenerVersion);
         app.get("/api/productos", ApiMain::listarProductos);
         app.post("/api/lugares-entrega", ApiMain::crearLugarEntrega);
         app.get("/api/distritos", ApiMain::listarDistritos);
@@ -151,6 +159,13 @@ public final class ApiMain {
             throw new UnauthorizedResponse("Sesion invalida o expirada. Inicia sesion de nuevo.");
         }
         return usuario;
+    }
+
+    private static void obtenerVersion(Context ctx) {
+        Map<String, String> mapa = new HashMap<String, String>();
+        mapa.put("version", VERSION_ESCRITORIO);
+        mapa.put("url", VERSION_ESCRITORIO_URL);
+        ctx.json(mapa);
     }
 
     private static void listarProductos(Context ctx) throws SQLException {

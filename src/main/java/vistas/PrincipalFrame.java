@@ -2,6 +2,7 @@ package vistas;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -16,7 +17,9 @@ import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JTabbedPane;
 import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 import modelos.Usuario;
+import servicios.ActualizacionService;
 
 public class PrincipalFrame extends JFrame {
     private final Usuario usuario;
@@ -40,6 +43,7 @@ public class PrincipalFrame extends JFrame {
         setMinimumSize(new Dimension(1080, 700));
         construirMenu();
         construirContenido();
+        verificarActualizacion();
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
@@ -145,6 +149,43 @@ public class PrincipalFrame extends JFrame {
             ventasPanel.cargarDatos();
         } else if (seleccion == 2) {
             productosPanel.cargar();
+        }
+    }
+
+    private void verificarActualizacion() {
+        SwingWorker<ActualizacionService.InfoActualizacion, Void> worker =
+                new SwingWorker<ActualizacionService.InfoActualizacion, Void>() {
+            @Override
+            protected ActualizacionService.InfoActualizacion doInBackground() {
+                return new ActualizacionService().buscarActualizacion();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    ActualizacionService.InfoActualizacion info = get();
+                    if (info != null) {
+                        mostrarAvisoActualizacion(info);
+                    }
+                } catch (Exception ignored) {
+                    // Si falla la verificacion (sin internet, etc.) no molestamos al usuario.
+                }
+            }
+        };
+        worker.execute();
+    }
+
+    private void mostrarAvisoActualizacion(ActualizacionService.InfoActualizacion info) {
+        int respuesta = Mensajes.elegir(this, "Actualizacion disponible",
+                "Hay una nueva version de Torven (v" + info.versionDisponible
+                        + ") disponible. ¿Quieres abrir la pagina de descarga?",
+                new String[]{"Ahora no", "Descargar"}, 1);
+        if (respuesta == 1 && info.urlDescarga != null && Desktop.isDesktopSupported()) {
+            try {
+                Desktop.getDesktop().browse(new java.net.URI(info.urlDescarga));
+            } catch (Exception ex) {
+                Ui.aviso(this, "No se pudo abrir el navegador. Descarga el instalador desde: " + info.urlDescarga);
+            }
         }
     }
 
