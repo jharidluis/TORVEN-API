@@ -1,7 +1,7 @@
 // Sube este numero en cada deploy que toque index.html/app.js/styles.css:
 // el navegador solo reinstala el service worker (y refresca el cache) si este
 // archivo cambia de contenido, aunque los otros archivos si hayan cambiado.
-const CACHE_NAME = 'torven-shell-v7';
+const CACHE_NAME = 'torven-shell-v8';
 const ARCHIVOS_SHELL = [
   '/',
   '/index.html',
@@ -39,13 +39,37 @@ self.addEventListener('fetch', (evento) => {
 
   // El resto (index.html, app.js, styles.css, iconos) va primero a la red
   // para que cada deploy se vea de inmediato, sin depender de que el
-  // usuario borre datos del sitio. Si no hay conexion, se usa el cache
-  // como respaldo para que la app siga abriendo.
+  // usuario borre datos del sitio. Si la red no responde (sin conexion,
+  // o esta muy lenta/colgada, comun al reabrir el celular con señal
+  // debil) se usa el cache como respaldo en vez de esperar para siempre.
+  const RED_TIMEOUT_MS = 4000;
+
   evento.respondWith(
-    fetch(evento.request).then((respuesta) => {
-      const copia = respuesta.clone();
-      caches.open(CACHE_NAME).then((cache) => cache.put(evento.request, copia));
-      return respuesta;
-    }).catch(() => caches.match(evento.request))
+    (async () => {
+      const solicitudRed = fetch(evento.request).then((respuesta) => {
+        const copia = respuesta.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(evento.request, copia));
+        return respuesta;
+      });
+      // Si esta peticion termina fallando (sin conexion) despues de que
+      // ya usamos el cache, que no truene como "unhandled rejection".
+      solicitudRed.catch(() => {});
+
+      const timeout = new Promise((resolve) => setTimeout(resolve, RED_TIMEOUT_MS, null));
+
+      const respuesta = await Promise.race([solicitudRed, timeout]).catch(() => null);
+      if (respuesta) {
+        return respuesta;
+      }
+
+      const cacheada = await caches.match(evento.request);
+      if (cacheada) {
+        return cacheada;
+      }
+
+      // Sin cache disponible (primera visita con conexion inestable):
+      // como ultimo recurso esperamos la misma peticion ya en curso.
+      return solicitudRed;
+    })()
   );
 });
