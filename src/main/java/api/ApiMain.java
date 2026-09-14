@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import configuracion.AuditoriaContext;
 import dao.DashboardDAO;
+import dao.GastoDAO;
 import dao.LugarEntregaDAO;
 import dao.ProductoDAO;
 import dao.UsuarioDAO;
@@ -26,6 +27,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import modelos.Distrito;
+import modelos.Gasto;
 import modelos.LineaVenta;
 import modelos.LugarEntrega;
 import modelos.Usuario;
@@ -47,6 +49,7 @@ public final class ApiMain {
     private static final ProductoDAO productoDAO = new ProductoDAO();
     private static final VentaDAO ventaDAO = new VentaDAO();
     private static final DashboardDAO dashboardDAO = new DashboardDAO();
+    private static final GastoDAO gastoDAO = new GastoDAO();
     private static final TokenStore tokens = new TokenStore();
     private static final LoginThrottle loginThrottle = new LoginThrottle();
 
@@ -85,6 +88,10 @@ public final class ApiMain {
         app.get("/api/reservas", ApiMain::listarReservas);
         app.get("/api/reservas/{id}", ApiMain::obtenerReserva);
         app.post("/api/reservas/{id}/estado", ApiMain::actualizarEstadoReserva);
+        app.get("/api/categorias-gasto", ApiMain::listarCategoriasGasto);
+        app.get("/api/gastos", ApiMain::listarGastosHoy);
+        app.post("/api/gastos", ApiMain::crearGasto);
+        app.get("/api/gastos/resumen-mensual", ApiMain::obtenerResumenMensualGastos);
 
         app.exception(HttpResponseException.class, (ex, ctx) -> {
             ctx.status(ex.getStatus()).json(mapaError(ex.getMessage()));
@@ -264,6 +271,49 @@ public final class ApiMain {
         } finally {
             AuditoriaContext.limpiar();
         }
+    }
+
+    private static void listarCategoriasGasto(Context ctx) throws SQLException {
+        autenticado(ctx);
+        ctx.json(gastoDAO.listarCategorias());
+    }
+
+    private static void listarGastosHoy(Context ctx) throws SQLException {
+        autenticado(ctx);
+        ctx.json(gastoDAO.listarHoy());
+    }
+
+    private static void crearGasto(Context ctx) throws SQLException {
+        Usuario usuario = autenticado(ctx);
+        GastoRequest cuerpo = ctx.bodyAsClass(GastoRequest.class);
+        if (cuerpo.idCategoriaGasto <= 0) {
+            throw new BadRequestResponse("Selecciona una categoria.");
+        }
+        if (cuerpo.descripcion == null || cuerpo.descripcion.trim().isEmpty()) {
+            throw new BadRequestResponse("Ingresa una descripcion del gasto.");
+        }
+        if (cuerpo.monto == null || cuerpo.monto.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestResponse("Ingresa un monto valido.");
+        }
+
+        Gasto gasto = new Gasto();
+        gasto.setIdCategoriaGasto(cuerpo.idCategoriaGasto);
+        gasto.setDescripcion(cuerpo.descripcion);
+        gasto.setMonto(cuerpo.monto);
+        gasto.setIdUsuario(usuario.getId());
+
+        AuditoriaContext.establecer(usuario);
+        try {
+            gastoDAO.crear(gasto);
+            ctx.json(gastoDAO.obtenerPorId(gasto.getId()));
+        } finally {
+            AuditoriaContext.limpiar();
+        }
+    }
+
+    private static void obtenerResumenMensualGastos(Context ctx) throws SQLException {
+        autenticado(ctx);
+        ctx.json(gastoDAO.resumenMensual());
     }
 
     private static long idDesdePath(Context ctx) {

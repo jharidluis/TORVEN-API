@@ -23,11 +23,17 @@
     });
   }
 
-  if (estado.token && estado.usuario) {
-    mostrarPantallaVenta();
-  } else {
-    mostrarPantalla(pantallaLogin);
-  }
+  // La decision de que pantalla mostrar al abrir se dispara al final de este
+  // archivo (ver "Arranque final"), no aqui arriba. Si se llama aqui, con una
+  // sesion ya guardada esto invoca mostrarPantallaVenta() -> funciones que
+  // leen variables "let" (distritosCargados, categoriasGastoCargadas, etc.)
+  // declaradas mas abajo en el archivo, que todavia estan en su "zona muerta
+  // temporal": el motor de JS lanza un ReferenceError y todo el script se
+  // detiene ahi mismo, sin llegar a registrar ningun boton de la pantalla de
+  // ventas/entregas/gastos. Eso deja la app viendose cargada pero sin
+  // responder a ningun toque, indistinguible de una pantalla "congelada" -
+  // y pasa justo en el caso mas comun: abrir la PWA con una sesion que ya
+  // habia iniciado sesion antes.
 
   // ---------- Navegacion entre pantallas ----------
 
@@ -37,13 +43,130 @@
     });
   }
 
-  function mostrarPantallaVenta() {
+  function mostrarPantallaVenta(opciones) {
     el('nombre-usuario').textContent = estado.usuario.nombre || estado.usuario.usuario;
     el('rol-usuario').textContent = estado.usuario.rol || '';
     mostrarPantalla(pantallaVenta);
-    cargarDistritosSiHaceFalta();
+    cargarCategoriasGastoSiHaceFalta();
+    cargarDistritosSiHaceFalta().then(function () {
+      if (opciones && opciones.restaurarBorrador) {
+        restaurarBorrador();
+      }
+    });
     reiniciarTemporizadorInactividad();
   }
+
+  // ---------- Recuperacion tras segundo plano (pantalla "congelada") ----------
+  //
+  // Android y iOS pueden congelar o directamente matar la pestana de la PWA
+  // cuando pasa un rato en segundo plano (para ahorrar bateria/memoria). Al
+  // volver, Chrome a veces solo muestra una captura vieja de la pantalla que
+  // ya no responde a nada (bug conocido de Chrome/WebAPK al "despertar" una
+  // pestana). No hay forma confiable de detectar esto desde JS y "reparar"
+  // la pagina en el sitio: lo unico que garantiza que la app vuelva a
+  // responder siempre es recargarla por completo. Para que eso no se sienta
+  // como perder el trabajo a medias, el carrito y los datos de entrega se
+  // guardan justo antes de pasar a segundo plano y se restauran solos al
+  // volver a cargar.
+
+  const BORRADOR_KEY = 'torven_borrador_venta';
+  const UMBRAL_RECARGA_MS = 2000;
+  let vistaActivaActual = 'ventas';
+  let ultimaVezOculto = null;
+
+  function guardarBorrador() {
+    if (!estado.token) {
+      return;
+    }
+    try {
+      sessionStorage.setItem(BORRADOR_KEY, JSON.stringify({
+        vista: vistaActivaActual,
+        carrito: estado.carrito,
+        direccion: el('entrega-direccion').value,
+        distrito: selectDistrito.value,
+        numero: el('entrega-numero').value
+      }));
+    } catch (error) {
+      // sessionStorage puede fallar sin espacio o en navegacion privada: no es critico.
+    }
+  }
+
+  function limpiarBorrador() {
+    try {
+      sessionStorage.removeItem(BORRADOR_KEY);
+    } catch (error) {
+      // no es critico
+    }
+  }
+
+  function restaurarBorrador() {
+    let borrador = null;
+    try {
+      borrador = JSON.parse(sessionStorage.getItem(BORRADOR_KEY) || 'null');
+    } catch (error) {
+      borrador = null;
+    }
+    if (!borrador) {
+      return;
+    }
+    estado.carrito = Array.isArray(borrador.carrito) ? borrador.carrito : [];
+    actualizarCarritoUI();
+    if (borrador.direccion) {
+      el('entrega-direccion').value = borrador.direccion;
+    }
+    if (borrador.numero) {
+      el('entrega-numero').value = borrador.numero;
+    }
+    if (borrador.distrito) {
+      selectDistrito.value = borrador.distrito;
+    }
+    actualizarBotonConfirmar();
+    if (borrador.vista && borrador.vista !== 'ventas') {
+      mostrarVistaPrincipal(borrador.vista);
+    }
+  }
+
+  function manejarRegresoAPrimerPlano() {
+    if (!estado.token) {
+      return;
+    }
+    const estuvoOcultaBastante = ultimaVezOculto !== null && (Date.now() - ultimaVezOculto) >= UMBRAL_RECARGA_MS;
+    ultimaVezOculto = null;
+    if (estuvoOcultaBastante) {
+      location.reload();
+      return;
+    }
+    // Oculta muy poco tiempo (cambio de pantalla accidental, gesto del
+    // sistema): no hace falta recargar, solo refrescar lo que pueda haber
+    // cambiado y reiniciar el cierre de sesion por inactividad.
+    reiniciarTemporizadorInactividad();
+    if (vistaActivaActual === 'entregas') {
+      cargarReservas();
+    } else if (vistaActivaActual === 'gastos') {
+      cargarGastosHoy();
+    }
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') {
+      ultimaVezOculto = Date.now();
+      guardarBorrador();
+    } else {
+      manejarRegresoAPrimerPlano();
+    }
+  });
+
+  // Respaldo para cuando visibilitychange no alcanza a dispararse antes de
+  // que el sistema suspenda la pagina (mas comun en iOS), y para navegadores
+  // que si implementan la Page Lifecycle API (freeze/resume).
+  window.addEventListener('pagehide', guardarBorrador);
+  document.addEventListener('freeze', guardarBorrador);
+  document.addEventListener('resume', manejarRegresoAPrimerPlano);
+  window.addEventListener('pageshow', function (evento) {
+    if (evento.persisted) {
+      manejarRegresoAPrimerPlano();
+    }
+  });
 
   // ---------- Cierre de sesion por inactividad ----------
 
@@ -147,25 +270,31 @@
     estado.carrito = [];
     localStorage.removeItem('torven_token');
     localStorage.removeItem('torven_usuario');
+    limpiarBorrador();
     limpiarFormularioEntrega();
     actualizarCarritoUI();
     mostrarVistaPrincipal('ventas');
     mostrarPantalla(pantallaLogin);
   }
 
-  // ---------- Pestanas Ventas / Entregas ----------
+  // ---------- Pestanas Ventas / Entregas / Gastos ----------
 
   const vistaVentas = el('vista-ventas');
   const vistaEntregas = el('vista-entregas');
+  const vistaGastos = el('vista-gastos');
 
   function mostrarVistaPrincipal(vista) {
+    vistaActivaActual = vista;
     document.querySelectorAll('#tabs-principales .segmento').forEach(function (boton) {
       boton.classList.toggle('activo', boton.getAttribute('data-vista') === vista);
     });
     vistaVentas.classList.toggle('oculto', vista !== 'ventas');
     vistaEntregas.classList.toggle('oculto', vista !== 'entregas');
+    vistaGastos.classList.toggle('oculto', vista !== 'gastos');
     if (vista === 'entregas') {
       cargarReservas();
+    } else if (vista === 'gastos') {
+      cargarGastosHoy();
     }
   }
 
@@ -279,10 +408,11 @@
   });
 
   el('boton-mapa-entregas').addEventListener('click', function () {
-    abrirMapaEntregasHoy();
+    abrirWazeProximaEntrega();
   });
 
-  function abrirMapaEntregasHoy() {
+
+  function abrirWazeProximaEntrega() {
     const hoy = new Date();
     const entregasHoy = reservasActuales.filter(function (reserva) {
       if (!reserva.horaEntregaPactada) {
@@ -299,16 +429,14 @@
       return;
     }
 
-    const direcciones = entregasHoy.map(function (reserva) {
-      return (reserva.direccion || '') + (reserva.distrito ? ', ' + reserva.distrito : '') + ', Lima, Peru';
-    });
-
-    const destino = encodeURIComponent(direcciones[direcciones.length - 1]);
-    const paradas = direcciones.slice(0, -1).map(encodeURIComponent).join('|');
-    let url = 'https://www.google.com/maps/dir/?api=1&destination=' + destino + '&travelmode=driving';
-    if (paradas) {
-      url += '&waypoints=' + paradas;
-    }
+    // Waze no soporta rutas con varias paradas via enlace directo (a
+    // diferencia de Google Maps): abre navegacion a la entrega mas proxima
+    // por hora pactada (reservasActuales ya viene ordenada asi desde la
+    // API). Al marcarla como entregada, este boton pasa a apuntar a la
+    // siguiente.
+    const proxima = entregasHoy[0];
+    const direccion = (proxima.direccion || '') + (proxima.distrito ? ', ' + proxima.distrito : '') + ', Lima, Peru';
+    const url = 'https://waze.com/ul?q=' + encodeURIComponent(direccion) + '&navigate=yes';
     window.open(url, '_blank');
   }
 
@@ -347,9 +475,9 @@
 
   function cargarDistritosSiHaceFalta() {
     if (distritosCargados) {
-      return;
+      return Promise.resolve();
     }
-    apiFetch('/api/distritos').then(function (distritos) {
+    return apiFetch('/api/distritos').then(function (distritos) {
       distritosCargados = true;
       estado.distritos = distritos;
       selectDistrito.innerHTML = '';
@@ -561,6 +689,7 @@
       estado.carrito = [];
       limpiarFormularioEntrega();
       actualizarCarritoUI();
+      limpiarBorrador();
       mostrarPantalla(pantallaConfirmacion);
     }).catch(function (error) {
       el('error-hora-entrega').textContent = error.message || 'Ocurrio un error.';
@@ -574,6 +703,129 @@
 
   function mostrarErrorVenta(error) {
     el('error-venta').textContent = error.message || 'Ocurrio un error.';
+  }
+
+  // ---------- Gastos ----------
+
+  const selectCategoriaGasto = el('gasto-categoria');
+  const listaGastos = el('lista-gastos');
+  const gastosVacio = el('gastos-vacio');
+
+  let categoriasGastoCargadas = false;
+
+  function cargarCategoriasGastoSiHaceFalta() {
+    if (categoriasGastoCargadas) {
+      return;
+    }
+    apiFetch('/api/categorias-gasto').then(function (categorias) {
+      categoriasGastoCargadas = true;
+      selectCategoriaGasto.innerHTML = '';
+      categorias.forEach(function (categoria) {
+        const opcion = document.createElement('option');
+        opcion.value = categoria.id;
+        opcion.textContent = categoria.nombre;
+        selectCategoriaGasto.appendChild(opcion);
+      });
+    }).catch(function () {
+      // Si falla, el select queda vacio; se reintenta mostrando la pantalla de nuevo.
+    });
+  }
+
+  function cargarGastosHoy() {
+    apiFetch('/api/gastos').then(function (gastos) {
+      renderizarGastos(gastos);
+    }).catch(function (error) {
+      listaGastos.innerHTML = '';
+      gastosVacio.textContent = error.message || 'No se pudieron cargar los gastos.';
+      gastosVacio.classList.remove('oculto');
+    });
+  }
+
+  function renderizarGastos(gastos) {
+    listaGastos.innerHTML = '';
+    gastosVacio.textContent = 'Todavia no registraste gastos hoy.';
+    gastosVacio.classList.toggle('oculto', gastos.length > 0);
+
+    let total = 0;
+    gastos.forEach(function (gasto) {
+      total += Number(gasto.monto);
+      const li = document.createElement('li');
+      li.innerHTML =
+        '<div class="carrito-info">' +
+        '  <div class="item-titulo">' + escapar(gasto.descripcion) + '</div>' +
+        '  <div class="item-detalle">' + escapar(gasto.categoria) + '</div>' +
+        '</div>' +
+        '<div>S/ ' + Number(gasto.monto).toFixed(2) + '</div>';
+      listaGastos.appendChild(li);
+    });
+    el('total-gastos').textContent = 'S/ ' + total.toFixed(2);
+  }
+
+  el('boton-guardar-gasto').addEventListener('click', function () {
+    const errorGasto = el('error-gasto');
+    errorGasto.textContent = '';
+
+    const idCategoriaGasto = Number(selectCategoriaGasto.value) || 0;
+    const descripcion = el('gasto-descripcion').value.trim();
+    const monto = Number(el('gasto-monto').value);
+
+    if (!idCategoriaGasto) {
+      errorGasto.textContent = 'Selecciona una categoria.';
+      return;
+    }
+    if (!descripcion) {
+      errorGasto.textContent = 'Ingresa una descripcion del gasto.';
+      return;
+    }
+    if (!monto || monto <= 0) {
+      errorGasto.textContent = 'Ingresa un monto valido.';
+      return;
+    }
+
+    const boton = el('boton-guardar-gasto');
+    boton.disabled = true;
+    apiFetch('/api/gastos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idCategoriaGasto: idCategoriaGasto, descripcion: descripcion, monto: monto })
+    }).then(function () {
+      el('gasto-descripcion').value = '';
+      el('gasto-monto').value = '';
+      boton.disabled = false;
+      cargarGastosHoy();
+      mostrarAviso('Gasto registrado.');
+    }).catch(function (error) {
+      errorGasto.textContent = error.message || 'Ocurrio un error.';
+      boton.disabled = false;
+    });
+  });
+
+  const modalResumenMensual = el('modal-resumen-mensual');
+
+  el('boton-resumen-mensual').addEventListener('click', function () {
+    apiFetch('/api/gastos/resumen-mensual').then(function (resumen) {
+      renderizarResumenMensual(resumen);
+      modalResumenMensual.classList.remove('oculto');
+    }).catch(function (error) {
+      mostrarAviso(error.message || 'No se pudo cargar el resumen del mes.');
+    });
+  });
+
+  el('boton-cerrar-resumen-mensual').addEventListener('click', function () {
+    modalResumenMensual.classList.add('oculto');
+  });
+
+  function renderizarResumenMensual(resumen) {
+    const lista = el('resumen-mensual-categorias');
+    lista.innerHTML = '';
+    resumen.porCategoria.forEach(function (fila) {
+      const li = document.createElement('li');
+      li.innerHTML =
+        '<div class="item-titulo">' + escapar(fila.categoria) + '</div>' +
+        '<div>S/ ' + Number(fila.total).toFixed(2) + '</div>';
+      lista.appendChild(li);
+    });
+    el('resumen-mensual-total').textContent = 'S/ ' + Number(resumen.total).toFixed(2);
   }
 
   // ---------- Utilidades ----------
@@ -609,5 +861,18 @@
     temporizadorAviso = setTimeout(function () {
       toastAviso.classList.remove('visible');
     }, 2600);
+  }
+
+  // ---------- Arranque final ----------
+  //
+  // Recien aqui, al final del archivo, ya se ejecutaron todas las
+  // declaraciones "let"/"const" de arriba (distritosCargados,
+  // categoriasGastoCargadas, etc.) y ya se registraron todos los
+  // event listeners de botones. Es seguro decidir que pantalla mostrar.
+
+  if (estado.token && estado.usuario) {
+    mostrarPantallaVenta({ restaurarBorrador: true });
+  } else {
+    mostrarPantalla(pantallaLogin);
   }
 })();

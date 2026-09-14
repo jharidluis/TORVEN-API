@@ -186,6 +186,22 @@ input:focus {
   margin: 0 0 10px;
 }
 
+.fila-titulo-boton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.fila-titulo-boton h2 {
+  margin: 0;
+}
+
+.fila-titulo-boton .boton-texto {
+  padding: 4px 0;
+  font-weight: 600;
+}
+
 .campo-buscar {
   width: 100%;
   background: var(--superficie);
@@ -349,7 +365,7 @@ select.campo-buscar {
   margin: 16px 16px 0;
 }
 
-#vista-ventas, #vista-entregas {
+#vista-ventas, #vista-entregas, #vista-gastos {
   display: flex;
   flex-direction: column;
   flex: 1;

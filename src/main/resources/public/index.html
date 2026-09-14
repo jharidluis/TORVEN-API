@@ -46,6 +46,7 @@
   <div id="tabs-principales" class="segmentado tabs-principales">
     <button type="button" class="segmento activo" data-vista="ventas">Ventas</button>
     <button type="button" class="segmento" data-vista="entregas">Entregas</button>
+    <button type="button" class="segmento" data-vista="gastos">Gastos</button>
   </div>
 
   <div id="vista-ventas">
@@ -93,9 +94,57 @@
       <ul id="lista-reservas" class="lista-reservas"></ul>
       <p id="reservas-vacio" class="texto-vacio oculto">No hay entregas pendientes.</p>
     </div>
-    <button id="boton-mapa-entregas" class="boton-fab" type="button">Mapa</button>
+    <button id="boton-mapa-entregas" class="boton-fab" type="button">Waze</button>
+  </div>
+
+  <div id="vista-gastos" class="oculto">
+    <div class="contenido-scroll">
+
+      <div class="bloque">
+        <h2>Nuevo gasto</h2>
+        <label for="gasto-categoria">Categoria</label>
+        <select id="gasto-categoria" class="campo-buscar"></select>
+        <label for="gasto-descripcion">Descripcion</label>
+        <input id="gasto-descripcion" type="text" class="campo-buscar" placeholder="Ej. Bolsas personalizadas">
+        <label for="gasto-monto">Monto (S/)</label>
+        <input id="gasto-monto" type="number" inputmode="decimal" step="0.01" min="0" class="campo-buscar" placeholder="0.00">
+        <p id="error-gasto" class="mensaje-error"></p>
+        <button id="boton-guardar-gasto" type="button" class="boton-primario">Guardar gasto</button>
+      </div>
+
+      <div class="bloque">
+        <div class="fila-titulo-boton">
+          <h2>Gastos de hoy</h2>
+          <button id="boton-resumen-mensual" type="button" class="boton-texto">Resumen del mes</button>
+        </div>
+        <ul id="lista-gastos" class="lista-carrito"></ul>
+        <p id="gastos-vacio" class="texto-vacio oculto">Todavia no registraste gastos hoy.</p>
+      </div>
+
+    </div>
+    <footer class="barra-inferior">
+      <div class="fila-total">
+        <span>Total de hoy</span>
+        <strong id="total-gastos">S/ 0.00</strong>
+      </div>
+    </footer>
   </div>
 </section>
+
+<!-- Modal: resumen mensual de gastos -->
+<div id="modal-resumen-mensual" class="modal-fondo oculto">
+  <div class="modal-tarjeta">
+    <h2>Gastos del mes</h2>
+    <ul id="resumen-mensual-categorias" class="lista-carrito"></ul>
+    <div class="fila-total">
+      <span>Total del mes</span>
+      <strong id="resumen-mensual-total">S/ 0.00</strong>
+    </div>
+    <div class="modal-botones">
+      <button id="boton-cerrar-resumen-mensual" type="button" class="boton-primario">Cerrar</button>
+    </div>
+  </div>
+</div>
 
 <!-- Detalle de una entrega/reserva -->
 <section id="pantalla-detalle-reserva" class="pantalla oculto">
